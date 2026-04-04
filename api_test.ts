@@ -22,11 +22,14 @@ const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 async function apiRequest(endpoint: string, options: RequestInit = {}) {
   const url = `${BASE_URL}${endpoint}`;
-  const headers = {
-    "Content-Type": "application/json",
-    ...(token ? { "Authorization": `Bearer ${token}` } : {}),
-    ...options.headers,
-  };
+  const headers = new Headers(options.headers);
+  headers.set("Content-Type", "application/json");
+
+  if (token !== "") {
+    headers.set("Authorization", `Bearer ${token}`);
+  }
+
+  console.log("headers", headers);
 
   const response = await fetch(url, {
     ...options,
@@ -79,6 +82,7 @@ Deno.test("User Login - POST /login", async () => {
   assertEquals(json.status, "success");
   assertExists(json.token);
   token = json.token;
+  console.log("token", token);
 });
 
 Deno.test("Initial Playlist State - POST /getplay", async () => {
@@ -96,7 +100,9 @@ Deno.test("Add Playlist - POST /list", async () => {
     method: "POST",
     body: JSON.stringify({
       urlList: [TEST_PLAYLIST_URL],
-      monitoringType: "None",
+      chunkSize: 9,
+      monitoringType: "N/A",
+      sleep: true,
     }),
   });
   assertEquals(resp.status, 200);

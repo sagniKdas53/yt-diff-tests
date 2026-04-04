@@ -62,16 +62,15 @@ services:
       timeout: 5s
       start_period: 10s
       retries: 5
-
-  test-runner:
-    build:
-      context: .
-      dockerfile: Dockerfile.test
-    container_name: yt-diff-test-runner
-    depends_on:
-      yt-diff-test:
-        condition: service_healthy
-    environment:
-      - API_BASE_URL=http://yt-diff-test:8888/ytdiff
+    # test-runner:
+    #   build:
+    #     context: .
+    #     dockerfile: Dockerfile.test
+    #   container_name: yt-diff-test-runner
+    #   depends_on:
+    #     yt-diff-test:
+    #       condition: service_healthy
+    #   environment:
+    #     - API_BASE_URL=http://yt-diff-test:8888/ytdiff
     # We want to see the results on the host, but for now we just rely on logs.
     # You can also mount a volume if you want to persist the logs.
