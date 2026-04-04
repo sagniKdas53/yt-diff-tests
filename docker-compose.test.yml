@@ -1,0 +1,77 @@
+services:
+  yt-db-test:
+    image: postgres:16.2-alpine3.19
+    container_name: yt-db-test
+    environment:
+      POSTGRES_USER: ytdiff
+      POSTGRES_PASSWORD: testpassword
+      POSTGRES_DB: vidlist
+    tmpfs:
+      - /var/lib/postgresql/data
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U ytdiff -d vidlist" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  valkey-test:
+    image: valkey/valkey:8-alpine
+    container_name: valkey-test
+    healthcheck:
+      test: [ "CMD", "valkey-cli", "ping" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  yt-diff-test:
+    # Build from source by default to test latest local changes.
+    # You can override this to use a pre-built image by setting YT_DIFF_IMAGE.
+    image: ${YT_DIFF_IMAGE:-yt-diff:test}
+    build:
+      context: ..
+      dockerfile: Dockerfile
+      args:
+        - VITE_BASE_PATH=/ytdiff
+    container_name: yt-diff-test
+    depends_on:
+      yt-db-test:
+        condition: service_healthy
+      valkey-test:
+        condition: service_healthy
+    environment:
+      - PROTOCOL=http
+      - HOSTNAME=localhost
+      - PORT=8888
+      - BASE_URL=/ytdiff
+      - DB_HOST=yt-db-test
+      - DB_USERNAME=ytdiff
+      - DB_PASSWORD=testpassword
+      - REDIS_HOST=valkey-test
+      - REDIS_PORT=6379
+      - SECRET_KEY=testsecretkey
+      - SAVE_PATH=/app/downloads
+      - ALLOW_REGISTRATION=true
+      - LOG_LEVELS=debug
+    tmpfs:
+      - /app/downloads
+    ports:
+      - "8888:8888"
+    healthcheck:
+      test: [ "CMD", "curl", "-f", "http://localhost:8888/ytdiff/ping" ]
+      interval: 5s
+      timeout: 5s
+      start_period: 10s
+      retries: 5
+
+  test-runner:
+    build:
+      context: .
+      dockerfile: Dockerfile.test
+    container_name: yt-diff-test-runner
+    depends_on:
+      yt-diff-test:
+        condition: service_healthy
+    environment:
+      - API_BASE_URL=http://yt-diff-test:8888/ytdiff
+    # We want to see the results on the host, but for now we just rely on logs.
+    # You can also mount a volume if you want to persist the logs.
