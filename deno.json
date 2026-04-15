@@ -3,6 +3,6 @@
     "std/": "https://deno.land/std@0.224.0/"
   },
   "tasks": {
-    "test": "deno --allow-all api_test.ts"
+    "test": "deno test --allow-all api_test.ts"
   }
 }
