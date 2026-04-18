@@ -33,252 +33,10 @@ const testUser = {
 
 let token =
   "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjMzMmE3ZTQ3LWY5NmItNDJjMi1hOTk1LTFkOGYxNjFkNmQ2MiIsImxhc3RQYXNzd29yZENoYW5nZVRpbWUiOiIyMDI2LTA0LTE4VDE4OjExOjIwLjU0OVoiLCJpYXQiOjE3NzY1MzU4OTAsImV4cCI6MTc3OTIxNDI5MH0.lI5gJUwo_tP7W_t-OdqHuY5syzkaC6zuH2X8rszquSY";
-let responseJson = {};
 // Helper to wait
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
-// Need to connect to socket to verify socket based responses.
-/* const url = new URL(BASE_URL);
-const base = url.origin;
-const path = url.pathname;
-const socket = io(base, {
-  path: path + "/socket.io",
-  auth: { token },
-  forceNew: true,
-});
-
-useEffect(() => {
-        if (!socket) return; // guard
-
-        // helpers
-        const nowTag = () => Date.now().toString();
-
-        // Handlers (use refs for any "current" state / callbacks)
-        const onInit = (data) => {
-            setConnectionId(data.id);
-
-            updateActiveDownloads(prev => Object.keys(prev).length ? {} : prev);
-            setActiveListingCount(prev => {
-                activeListingCountRef.current = 0;
-                return prev !== 0 ? 0 : prev;
-            });
-            // call latest callback
-            toggleProgressCallBackRef.current && toggleProgressCallBackRef.current(false);
-            setSnackRef.current && setSnackRef.current("Connected to Backend", "success");
-            socket.emit("acknowledge", { data: "Connected", id: data.id });
-        };
-
-        const onError = (data) => {
-            setSnackRef.current && setSnackRef.current(`${data.message}`, "error");
-        };
-
-        const onTokenExpired = () => {
-            setSnackRef.current && setSnackRef.current("Your session has expired.", "error");
-            setToken(null);
-            localStorage.setItem("ytdiff_token", "null");
-        };
-
-        const onConnectionError = () => setSnackRef.current && setSnackRef.current("Server is currently at maximum capacity.", "error");
-
-        const removeActiveDownload = (url) => {
-            updateActiveDownloads(prev => {
-                const next = { ...prev };
-                delete next[url];
-                return next;
-            });
-        };
-
-        const onDownloadStarted = (data) => {
-            //console.log("[Socket] download-started", data);
-            const url = data.url || "unknown";
-            const percent = isNaN(+data.percentage) ? 0 : +data.percentage;
-            updateActiveDownloads(prev => ({ ...prev, [url]: percent }));
-            toggleProgressCallBackRef.current && toggleProgressCallBackRef.current(false);
-        };
-
-        const onDownloadDone = (data) => {
-            //console.log("[Socket] download-done", data);
-            removeActiveDownload(data.url);
-            downloadedItem.current = {
-                url: data.url,
-                title: data.title,
-                fileName: data.fileName || null,
-                saveDirectory: data.saveDirectory || null,
-                isMetaDataSynced: data.isMetaDataSynced || null,
-                thumbNailFile: data.thumbNailFile || null,
-                onlineThumbnail: data.onlineThumbnail || null,
-                subTitleFile: data.subTitleFile || null,
-                descriptionFile: data.descriptionFile || null,
-            };
-            setSnackRef.current && setSnackRef.current(`${data.title}`, "success");
-            addNotificationRef.current && addNotificationRef.current(`Downloaded: ${data.title}`, "success");
-        };
-
-        const onDownloadFailed = (data) => {
-            //console.log("[Socket] download-failed", data);
-            removeActiveDownload(data.url);
-            setSnackRef.current && setSnackRef.current(`${data.title}`, "error");
-            addNotificationRef.current && addNotificationRef.current(`Download Failed: ${data.title}`, "error");
-        };
-
-        const onDownloadingPercentUpdate = (data) => {
-            //console.log("Downloading percent update", { url: data.url, percent: data.percentage });
-            const url = data.url || "unknown";
-            const percent = parseFloat(data.percentage);
-
-            if (isNaN(percent)) return;
-
-            if (percent >= 99) {
-                updateActiveDownloads(prev => ({ ...prev, [url]: 100 }));
-                toggleProgressCallBackRef.current && toggleProgressCallBackRef.current(true);
-            } else if (!disableProgressRef.current) {
-                updateActiveDownloads(prev => {
-                    if (prev[url] >= 100 && prev[url] !== 101) return prev;
-                    return { ...prev, [url]: percent };
-                });
-            }
-        };
-
-
-        const onListingStarted = (
-            //data
-        ) => {
-            //console.log("Listing started: ", data);
-            incrementListings();
-            toggleProgressCallBackRef.current && toggleProgressCallBackRef.current(false);
-        };
-
-        const onListingPlaylistComplete = (data) => {
-            //console.log("Listing playlist done: ", data);
-            decrementListings();
-            setSnackRef.current && setSnackRef.current(`${data.playlistTitle}`, "success");
-            const tag = "listing-playlist-complete-" + data.url + "-" + data.processedChunks + "-" + nowTag();
-            const current = playListUrlRef.current;
-
-            // Always re-fetch the playlist list to show final status
-            setReFetchPlaylist(tag);
-
-            if (current === "init") {
-                // Load the playlist if none is loaded
-                setPlayListUrl(data.url);
-                setPlayListIndex(data.seekPlaylistListTo);
-            } else if (current === data.url) {
-                // If viewing the completed playlist, refresh the sublist
-                setReFetchSubList(tag);
-            } else {
-                // Just update the index
-                setPlayListIndex(data.seekPlaylistListTo);
-            }
-
-            addNotificationRef.current && addNotificationRef.current(`Successfully imported playlist: ${data.playlistTitle}`, "success");
-        };
-
-        const onPlaylistSkipped = (data) => {
-            decrementListings();
-            setSnackRef.current && setSnackRef.current(`${data.message}`, "info");
-            addNotificationRef.current && addNotificationRef.current(`${data.message}`, "info");
-        };
-
-        const onListingPlaylistChunkComplete = (data) => {
-            //console.log("Listing chunk complete: ", data);
-            //console.log("Current playlist url (ref): ", playListUrlRef.current, " data url: ", data.url, " processed chunks: ", data.processedChunks);
-
-            const current = playListUrlRef.current;
-            const tag = "listing-playlist-chunk-complete-" + data.url + "-" + data.processedChunks + "-" + nowTag();
-
-            // Always re-fetch the playlist list to show updated status/counts
-            setReFetchPlaylist(tag);
-
-            // If the current url is init (i.e. No playlist is loaded) and the processed chunks is 1, then it is the first chunk so load it
-            if ((current === "init") && (data.processedChunks === 1)) {
-                //setIndeterminate(false);
-                setPlayListUrl(data.url);
-                setPlayListIndex(data.seekPlaylistListTo);
-            }
-            // If the current url is the same as the data url, it means we are viewing the playlist being processed
-            else if (current === data.url) {
-                // Re-fetch the sublist to show new videos
-                setReFetchSubList(tag);
-                setPlayListIndex(data.seekPlaylistListTo);
-            }
-        };
-
-        const onListingSingleItemComplete = (data) => {
-            decrementListings();
-            setReFetchSubList("listing-single-item-complete-" + data.url + "-" + nowTag());
-
-            const current = playListUrlRef.current;
-            if (current === "init" || current === "None") {
-                setPlayListUrl("None");
-                setSubListIndex(data.seekSubListTo);
-            }
-
-            if (data.alreadyExisted) {
-                setSnackRef.current && setSnackRef.current("Duplicate video encountered and navigated to", "info");
-                addNotificationRef.current && addNotificationRef.current(`Duplicate video encountered and navigated to ${data.title}`, "info");
-            } else {
-                addNotificationRef.current && addNotificationRef.current(`Successfully loaded video: ${data.title}`, "success");
-            }
-        };
-
-        const onListingError = (data) => {
-            decrementListings();
-            setSnackRef.current && setSnackRef.current(`${data.url}`, "error");
-            addNotificationRef.current && addNotificationRef.current(`Failed Listing: ${data.url}`, "error");
-        };
-
-        const onListingVideoSkippedBecauseDownloaded = (data) => {
-            decrementListings();
-            setSnackRef.current && setSnackRef.current(`${data.message}`, "info");
-            addNotificationRef.current && addNotificationRef.current(`${data.message}`, "info");
-        };
-
-        // Register listeners
-        socket.on("init", onInit);
-        socket.on("error", onError);
-        socket.on("token-expired", onTokenExpired);
-        socket.on("connection-error", onConnectionError);
-
-        socket.on("download-started", onDownloadStarted);
-        socket.on("download-done", onDownloadDone);
-        socket.on("download-failed", onDownloadFailed);
-        socket.on("downloading-percent-update", onDownloadingPercentUpdate);
-
-        socket.on("listing-started", onListingStarted);
-        socket.on("listing-playlist-complete", onListingPlaylistComplete);
-        socket.on("listing-playlist-chunk-complete", onListingPlaylistChunkComplete);
-        socket.on("listing-single-item-complete", onListingSingleItemComplete);
-        socket.on("listing-error", onListingError);
-        socket.on("listing-playlist-skipped-because-same-monitoring", onPlaylistSkipped);
-        socket.on("listing-video-skipped-because-downloaded", onListingVideoSkippedBecauseDownloaded);
-
-        // Cleanup on unmount or when socket changes
-        return () => {
-            try {
-                socket.off("init", onInit);
-                socket.off("error", onError);
-                socket.off("token-expired", onTokenExpired);
-                socket.off("connection-error", onConnectionError);
-
-                socket.off("download-started", onDownloadStarted);
-                socket.off("download-done", onDownloadDone);
-                socket.off("download-failed", onDownloadFailed);
-                socket.off("downloading-percent-update", onDownloadingPercentUpdate);
-
-                socket.off("listing-started", onListingStarted);
-                socket.off("listing-playlist-complete", onListingPlaylistComplete);
-                socket.off("listing-playlist-chunk-complete", onListingPlaylistChunkComplete);
-                socket.off("listing-single-item-complete", onListingSingleItemComplete);
-                socket.off("listing-error", onListingError);
-                socket.off("listing-playlist-skipped-because-same-monitoring", onPlaylistSkipped);
-                socket.off("listing-video-skipped-because-downloaded", onListingVideoSkippedBecauseDownloaded);
-            } catch (_e) {
-                // socket might already be closed; ignore
-                //console.warn("Error removing socket listeners", _e);
-            }
-        };
-    }, [socket]); // only recreate if socket reference changes
-*/
+// TODO: Need to connect to socket to verify socket based events
 
 async function apiRequest(endpoint: string, options: RequestInit = {}) {
   const url = `${BASE_URL}${endpoint}`;
@@ -546,21 +304,22 @@ Deno.test("Verify that there are 2 videos in Dup Test Playlist - POST /getsub", 
 });
 
 // Done:
-// 1. Get the inital playlist state
+// -4. Get the inital playlist state
 // Req: {"start":0,"stop":10,"sort":"1","order":"1","query":""}
 // Res: {"count":0,"rows":[]}
-// 2. Get the inital "None" playlist state
+// -3. Get the inital "None" playlist state
 // Req: {"start":0,"stop":10,"sort":"1","order":"1","query":""}
 // Res: {"count":0,"rows":[]}
-// 3. Add the "Dup Test" playlist
+// -2. Add the "Dup Test" playlist
 // Req: {"urlList":["https://www.youtube.com/playlist?list=PL4Oo6H2hGqj0YkYoOLFmrbhsVWfAjCLZw"],"chunkSize":9,"monitoringType":"N/A","sleep":true}
 // Res: {"status":"success","message":"Listing initiated","items":[{"url":"https://www.youtube.com/playlist?list=PL4Oo6H2hGqj0YkYoOLFmrbhsVWfAjCLZw","type":"undetermined","currentMonitoringType":"N/A","reason":"URL not found in database"}]}
-// 4. Get the playlist to see if the first playlist got added
+// -1. Get the playlist to see if the first playlist got added
 // Req: {"start":0,"stop":10,"sort":"1","order":"1","query":""}
 // Res: {"count":1,"rows":[{"playlistUrl":"https://www.youtube.com/playlist?list=PL4Oo6H2hGqj0YkYoOLFmrbhsVWfAjCLZw","title":"Dup Test","sortOrder":0,"monitoringType":"N/A","saveDirectory":"Dup Test","createdAt":"2026-04-18T19:35:30.827Z","updatedAt":"2026-04-18T19:35:30.827Z","lastUpdatedByScheduler":"2026-04-18T19:35:30.825Z"}]}
-// 5. Get the items in the sublist for "Dup Test"
+// 0. Get the items in the sublist for "Dup Test"
 // Req: {"start":0,"stop":8,"sortDownloaded":false,"query":"","url":"https://www.youtube.com/playlist?list=PL4Oo6H2hGqj0YkYoOLFmrbhsVWfAjCLZw"}
 // Res: {"count":2,"rows":[{"positionInPlaylist":1,"playlistUrl":"https://www.youtube.com/playlist?list=PL4Oo6H2hGqj0YkYoOLFmrbhsVWfAjCLZw","video_metadatum":{"title":"Run Immich through a docker container on Tailscale","videoId":"PexSJ31niEI","videoUrl":"https://www.youtube.com/watch?v=PexSJ31niEI","downloadStatus":false,"isAvailable":true,"fileName":null,"thumbNailFile":null,"onlineThumbnail":"https://i.ytimg.com/vi/PexSJ31niEI/sddefault.jpg?sqp=-oaymwEmCIAFEOAD8quKqQMa8AEB-AHSBoAC4AOKAgwIABABGFkgWShZMA8=&rs=AOn4CLAcuWHiDO7IaUGPtoIc2p9V4odxhg","subTitleFile":null,"descriptionFile":null,"isMetaDataSynced":false,"saveDirectory":null}},{"positionInPlaylist":2,"playlistUrl":"https://www.youtube.com/playlist?list=PL4Oo6H2hGqj0YkYoOLFmrbhsVWfAjCLZw","video_metadatum":{"title":"Run Immich through a docker container on Tailscale","videoId":"PexSJ31niEI","videoUrl":"https://www.youtube.com/watch?v=PexSJ31niEI","downloadStatus":false,"isAvailable":true,"fileName":null,"thumbNailFile":null,"onlineThumbnail":"https://i.ytimg.com/vi/PexSJ31niEI/sddefault.jpg?sqp=-oaymwEmCIAFEOAD8quKqQMa8AEB-AHSBoAC4AOKAgwIABABGFkgWShZMA8=&rs=AOn4CLAcuWHiDO7IaUGPtoIc2p9V4odxhg","subTitleFile":null,"descriptionFile":null,"isMetaDataSynced":false,"saveDirectory":null}}],"saveDirectory":"Dup Test"}
+
 // Planned:
 // 1. Download the first video but because both the videos in the Dup Test playlist are same downloading one downloads both videos.
 // Download Req: {"urlList":["https://www.youtube.com/watch?v=PexSJ31niEI"],"playListUrl":"https://www.youtube.com/playlist?list=PL4Oo6H2hGqj0YkYoOLFmrbhsVWfAjCLZw"}
@@ -645,6 +404,9 @@ Deno.test("Verify that there are 2 videos in Dup Test Playlist - POST /getsub", 
 // Res: {"count":1,"rows":[{"playlistUrl":"https://www.youtube.com/playlist?list=PL4Oo6H2hGqj0YkYoOLFmrbhsVWfAjCLZw","title":"Dup Test","sortOrder":0,"monitoringType":"N/A","saveDirectory":"Dup Test","createdAt":"2026-04-18T18:12:12.091Z","updatedAt":"2026-04-18T18:12:12.091Z","lastUpdatedByScheduler":"2026-04-18T18:12:12.086Z"}]}
 // Note: Deleting a video from the DB directly is not possible, all of the delete operations just delete the associations of videos in the playlists not the videos themselves, a background process is responsible for deleting the actual videos from the db
 //       If the video is not downloaded then it gets pruned if it is then it gets moved to the end of the "None" playlist
+
+// TODO: I don't like that we are re-using the same playlist for testing the duplicate videos and deletion, we should just delete Dup Test and get a clean slate for testing the deletion, pruning and moving to "None" playlist
+// get another playlist with disticnt videos that get listed downloaded, fully cleaned up or just unlinked and then left for the scheduler to clean up and see the video getting moved to "None" playlist
 // 28. Download the only video in "Dup Test" again
 // Req: {"urlList":["https://www.youtube.com/watch?v=PexSJ31niEI"],"playListUrl":"https://www.youtube.com/playlist?list=PL4Oo6H2hGqj0YkYoOLFmrbhsVWfAjCLZw"}
 // Res: {"status":"success","message":"Downloads initiated","items":[{"url":"https://www.youtube.com/watch?v=PexSJ31niEI","title":"Run Immich through a docker container on Tailscale","saveDirectory":"Dup Test","videoId":"PexSJ31niEI"}]}
@@ -656,4 +418,9 @@ Deno.test("Verify that there are 2 videos in Dup Test Playlist - POST /getsub", 
 // Res: {"status":"success","message":"Removed all video references from playlist Dup Test and deleted playlist and cleaned up playlist directory (and marked 1 shared video(s) as un-downloaded)","cleanUp":true,"deletePlaylist":true,"deleteAllVideosInPlaylist":true}
 // Note: At this point the "Run Immich through a docker container on Tailscale" video still is in DB, but since it's marked as un-downloaded it will be pruned by the scheduler
 //       To see a video getting moved to "None" playlist we will need to add a playlist, download the video in it and then either unlink the videos in it or delete the playlist
-// TODO: Simulate those conditions and see the video getting moved to "None" playlist (Need to reduce the clean up timer to every minute and add a 2 min wait after the deletes)
+// TODO: Implement the listing, downlodaing, deletion and pruning for the "None" playlist and then add a test case for it as well
+// Make sure to test the scenario where adding the same video to a playlist and None work together
+// If it's downloaded in one place it should be downloaded in the other place as well, if it's deleted in one place it should be deleted in the other place as well, if it's unlinked in one place it should be unlinked in the other place as well and if it's pruned in one place it should be pruned in the other place as well
+// Also make sure that the scheduler is not pruning the video if it's still linked to a playlist even if it's marked as un-downloaded, the video should only be pruned when it's marked as un-downloaded and not linked to any playlist including None playlist
+// If we try adding the the same video to "None" playlist twice it should not create duplicate mappings in None playlist (returns an error or ignores the request) I don't remember but it doesn't add a dupe entry to none
+// And on a similar note if the video we are trying to add to "None" is already downloaded in the any playlist then it should send an alert letting us know that it's downloaded and skip addion to None
