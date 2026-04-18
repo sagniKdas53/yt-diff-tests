@@ -53,7 +53,7 @@ services:
       - ALLOW_REGISTRATION=true
       - LOG_LEVELS=trace
     tmpfs:
-      - /app/downloads
+      - /app/downloads:mode=1777
     ports:
       - "8888:8888"
     healthcheck:

@@ -8,18 +8,76 @@
 import { assertEquals, assertExists, assertNotEquals } from "std/assert/mod.ts";
 
 const BASE_URL = Deno.env.get("API_BASE_URL") || "http://localhost:8888/ytdiff";
-const TEST_PLAYLIST_URL =
-  "https://www.youtube.com/playlist?list=PL4Oo6H2hGqj0YkYoOLFmrbhsVWfAjCLZw"; // Dup Test
-const TEST_PLAYLIST_URL_2 =
-  "https://www.youtube.com/playlist?list=PL4Oo6H2hGqj2fQCpmX2zfytLqD2Qv7yZY"; // Dup Test 2
-const UNLISTED_VIDEO_URL = "https://www.youtube.com/watch?v=AjiJugg-9UQ";
+const PUBLIC_DUP_TEST_PLAYLIST_URL =
+  "https://www.youtube.com/playlist?list=PL4Oo6H2hGqj0YkYoOLFmrbhsVWfAjCLZw"; // Dup Test - Used to test is a single video can appear in a playlist multiple times (Should have 2 identical items after listing)
+const PUBLIC_DUP_TEST_2_PLAYLIST_URL =
+  "https://www.youtube.com/playlist?list=PL4Oo6H2hGqj2fQCpmX2zfytLqD2Qv7yZY"; // Dup Test 2 - Used to test is a single video can appear in a multiple playlists (Should have 1 item after listing)
+const PRIVATE_PLAYLIST_URL =
+  "https://www.youtube.com/playlist?list=PL4Oo6H2hGqj0q_UjwFCiXuMGL65KF0fzh"; // Old Songs - Shouldn't be accessible without cookies
+const UNLISTED_PLAYLIST_URL =
+  "https://www.youtube.com/playlist?list=PL4Oo6H2hGqj0iN_y58yjymtLFKC9qULfs"; // Unlisted Playlist - Listing should work
+const DELETED_PLAYLIST_URL =
+  "https://www.youtube.com/playlist?list=PL4Oo6H2hGqj20sheGzOeQKRBT5zMIVA7C"; // Deleted Playlist - Shouldn't be accessible
+const EMPTY_PLAYLIST_URL =
+  "https://www.youtube.com/playlist?list=PL4Oo6H2hGqj2kdeNNaCk-I3fpf2jW0N25"; // Empty Playlist - Accessible but Listing should fail as we are unable to extract playlist deatils as no items are present.
+const PUBLIC_VIDEO_URL = "https://www.youtube.com/watch?v=JWdTskHy9TE"; // Should be accessible - Don't download this video as it's long and will take a lot of time to download
+const PUBLIC_VIDEO_URL_2 = "https://www.youtube.com/watch?v=PexSJ31niEI"; // Should be accessible - This is the video in both Dup Test and Dup Test 2 (Download this to see if the One-to-many mapping is working correctly)
+const UNLISTED_VIDEO_URL = "https://www.youtube.com/watch?v=dPiPWbkebEo"; // Unlisted Video - Listing should work
+const PRIVATE_VIDEO_URL = "https://www.youtube.com/watch?v=6jtxTHEa8CA"; // Shouldn't be accessible without cookies
+const DELETED_VIDEO_URL = "https://www.youtube.com/watch?v=C1m9W1DBJJ0"; // Shouldn't be accessible
 const testUser = {
   userName: `testuser_123`,
   password: "testpassword_123",
 };
 
 let token =
-  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6ImJkYzMxODA2LTFjZTEtNDE2Mi05OGRlLTk2MjI3ODUyNzQzMiIsImxhc3RQYXNzd29yZENoYW5nZVRpbWUiOiIyMDI2LTA0LTE4VDA4OjAwOjMxLjc5MloiLCJpYXQiOjE3NzY1MDAwMzIsImV4cCI6MTc3OTE3ODQzMn0.XfNayYgg36yk5t1BCbjcaNnXcrBZ4E0ZhmQIIAP3F7A";
+  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjdkZTJiMzE3LWUyZDQtNGNkOS1hODcxLWI1MTI1YzRjN2FhNiIsImxhc3RQYXNzd29yZENoYW5nZVRpbWUiOiIyMDI2LTA0LTE4VDEyOjMzOjM0LjI1N1oiLCJpYXQiOjE3NzY1MTU2MjAsImV4cCI6MTc3OTE5NDAyMH0.YrtbQAstRlDOaqHeX3f-gUMTqSKDkGUJY2-wufsAyTE";
+let getSubListResponse = {
+  "count": 2,
+  "rows": [
+    {
+      "positionInPlaylist": 1,
+      "playlistUrl":
+        "https://www.youtube.com/playlist?list=PL4Oo6H2hGqj0YkYoOLFmrbhsVWfAjCLZw",
+      "video_metadatum": {
+        "title": "Run Immich through a docker container on Tailscale",
+        "videoId": "PexSJ31niEI",
+        "videoUrl": "https://www.youtube.com/watch?v=PexSJ31niEI",
+        "downloadStatus": false,
+        "isAvailable": true,
+        "fileName": null,
+        "thumbNailFile": null,
+        "onlineThumbnail":
+          "https://i.ytimg.com/vi/PexSJ31niEI/sddefault.jpg?sqp=-oaymwEmCIAFEOAD8quKqQMa8AEB-AHSBoAC4AOKAgwIABABGFkgWShZMA8=&rs=AOn4CLAcuWHiDO7IaUGPtoIc2p9V4odxhg",
+        "subTitleFile": null,
+        "descriptionFile": null,
+        "isMetaDataSynced": false,
+        "saveDirectory": null,
+      },
+    },
+    {
+      "positionInPlaylist": 2,
+      "playlistUrl":
+        "https://www.youtube.com/playlist?list=PL4Oo6H2hGqj0YkYoOLFmrbhsVWfAjCLZw",
+      "video_metadatum": {
+        "title": "Run Immich through a docker container on Tailscale",
+        "videoId": "PexSJ31niEI",
+        "videoUrl": "https://www.youtube.com/watch?v=PexSJ31niEI",
+        "downloadStatus": false,
+        "isAvailable": true,
+        "fileName": null,
+        "thumbNailFile": null,
+        "onlineThumbnail":
+          "https://i.ytimg.com/vi/PexSJ31niEI/sddefault.jpg?sqp=-oaymwEmCIAFEOAD8quKqQMa8AEB-AHSBoAC4AOKAgwIABABGFkgWShZMA8=&rs=AOn4CLAcuWHiDO7IaUGPtoIc2p9V4odxhg",
+        "subTitleFile": null,
+        "descriptionFile": null,
+        "isMetaDataSynced": false,
+        "saveDirectory": null,
+      },
+    },
+  ],
+  "saveDirectory": "Dup Test",
+};
 // Helper to wait
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -123,20 +181,37 @@ Deno.test("Verify Initial Sublist in None Playlist - POST /getsub", async () => 
   console.log("Verifying videos in playlist...");
   const resp = await apiRequest("/getsub", {
     method: "POST",
-    body: JSON.stringify({ url: "None" }),
+    body: JSON.stringify({
+      start: 0,
+      stop: 8,
+      sortDownloaded: false,
+      query: "",
+      url: "None",
+    }),
   });
   assertEquals(resp.status, 200);
   const json = await resp.json();
-  // Should be empty
+  // {"count":0,"rows":[],"saveDirectory":""}
   assertEquals(json.rows.length, 0);
+  assertEquals(json.count, 0);
+  assertEquals(json.saveDirectory, "");
 });
 
 Deno.test("Initial Playlist State - POST /getplay", async () => {
-  const resp = await apiRequest("/getplay", { method: "POST", body: "{}" });
+  const resp = await apiRequest("/getplay", {
+    method: "POST",
+    body: JSON.stringify({
+      start: 0,
+      stop: 10,
+      sort: "1",
+      order: "1",
+      query: "",
+    }),
+  });
   assertEquals(resp.status, 200);
   const json = await resp.json();
-  // Standard display excludes system playlists (like "None")
-  assertExists(json.rows);
+  // {"count":0,"rows":[]}
+  assertEquals(json.rows.length, 0);
   assertEquals(json.count, 0);
 });
 
@@ -145,7 +220,7 @@ Deno.test("Add Dup Test Playlist - POST /list", async () => {
   const resp = await apiRequest("/list", {
     method: "POST",
     body: JSON.stringify({
-      urlList: [TEST_PLAYLIST_URL],
+      urlList: [PUBLIC_DUP_TEST_PLAYLIST_URL],
       chunkSize: 9,
       monitoringType: "N/A",
       sleep: true,
@@ -153,7 +228,14 @@ Deno.test("Add Dup Test Playlist - POST /list", async () => {
   });
   assertEquals(resp.status, 200);
   const json = await resp.json();
+  // {"status":"success","message":"Listing initiated","items":[{"url":"https://www.youtube.com/playlist?list=PL4Oo6H2hGqj0YkYoOLFmrbhsVWfAjCLZw","type":"undetermined","currentMonitoringType":"N/A","reason":"URL not found in database"}]}
   assertEquals(json.status, "success");
+  assertEquals(json.message, "Listing initiated");
+  assertEquals(json.items.length, 1);
+  assertEquals(json.items[0].url, PUBLIC_DUP_TEST_PLAYLIST_URL);
+  assertEquals(json.items[0].type, "undetermined");
+  assertEquals(json.items[0].currentMonitoringType, "N/A");
+  assertEquals(json.items[0].reason, "URL not found in database");
 
   // Wait for the background listing to complete (it's a small playlist)
   console.log("Waiting 30s for listing to complete...");
@@ -162,338 +244,178 @@ Deno.test("Add Dup Test Playlist - POST /list", async () => {
 
 Deno.test("Verify Dup Test Playlist Added - POST /getplay", async () => {
   console.log("Verifying playlist added...");
-  const resp = await apiRequest("/getplay", { method: "POST", body: "{}" });
+  const resp = await apiRequest("/getplay", {
+    method: "POST",
+    body: JSON.stringify({
+      start: 0,
+      stop: 10,
+      sort: "1",
+      order: "1",
+      query: "",
+    }),
+  });
   assertEquals(resp.status, 200);
   const json = await resp.json();
+  // {"count":1,"rows":[{"playlistUrl":"https://www.youtube.com/playlist?list=PL4Oo6H2hGqj0YkYoOLFmrbhsVWfAjCLZw","title":"Dup Test","sortOrder":0,"monitoringType":"N/A","saveDirectory":"Dup Test","createdAt":"2026-04-18T12:00:01.860Z","updatedAt":"2026-04-18T12:00:01.860Z","lastUpdatedByScheduler":"2026-04-18T12:00:01.841Z"}]}
   assertExists(json.rows, "Response should have rows");
+  assertEquals(json.count, 1);
+  assertEquals(json.rows.length, 1);
   const testPlaylist = json.rows.find((p: Record<string, unknown>) =>
-    p.playlistUrl === TEST_PLAYLIST_URL
+    p.playlistUrl === PUBLIC_DUP_TEST_PLAYLIST_URL
   );
   assertExists(
     testPlaylist,
-    `Playlist ${TEST_PLAYLIST_URL} should be present in results: ${
+    `Playlist ${PUBLIC_DUP_TEST_PLAYLIST_URL} should be present in results: ${
       JSON.stringify(json.rows)
     }`,
   );
   assertEquals(testPlaylist.title, "Dup Test");
+  assertEquals(testPlaylist.sortOrder, 0);
+  assertEquals(testPlaylist.monitoringType, "N/A");
+  assertEquals(testPlaylist.saveDirectory, "Dup Test");
 });
 
 Deno.test("Verify Videos in Dup Test Playlist - POST /getsub", async () => {
   console.log("Verifying videos in playlist...");
   const resp = await apiRequest("/getsub", {
     method: "POST",
-    body: JSON.stringify({ url: TEST_PLAYLIST_URL }),
+    body: JSON.stringify(
+      {
+        start: 0,
+        stop: 8,
+        sortDownloaded: false,
+        query: "",
+        url: PUBLIC_DUP_TEST_PLAYLIST_URL,
+      },
+    ),
   });
   assertEquals(resp.status, 200);
   const json = await resp.json();
-  assertExists(json.rows, "Response should have rows");
-  assertNotEquals(
-    json.rows.length,
-    0,
-    "Should have at least one video in Dup Test",
-  );
-  const firstVideo = json.rows[0].video_metadatum;
-  assertExists(firstVideo, "Video metadata should be present");
-
-  // Test /getfile
-  const rawFileName = firstVideo.fileName;
-  const fileName = (typeof rawFileName === "string" && rawFileName.length > 0)
-    ? rawFileName
-    : "placeholder.mp4";
-  const saveDirectory = firstVideo.saveDirectory || "Dup Test";
-
-  console.log("Testing /getfile with:", {
-    saveDirectory,
-    fileName,
-    rawFileName,
-  });
-  const getFileResp = await apiRequest("/getfile", {
-    method: "POST",
-    body: JSON.stringify({
-      saveDirectory,
-      fileName,
-    }),
-  });
-  // The file doesn't exist on disk in the test env, so we expect a 400 with "File could not be found"
-  // but we've successfully reached the handler and passed validation.
-  if (getFileResp.status !== 200 && getFileResp.status !== 400) {
-    const errorText = await getFileResp.clone().text();
-    console.error(`GetFile failed (${getFileResp.status}): ${errorText}`);
-  }
-  // If it's 400, verify the error message is about finding the file
-  if (getFileResp.status === 400) {
-    const errorJson = await getFileResp.clone().json();
-    assertEquals(errorJson.message, "File could not be found");
-  } else {
-    assertEquals(getFileResp.status, 200);
-  }
-  if (getFileResp.status === 200) {
-    const getFileJson = await getFileResp.json();
-    assertExists(getFileJson.url, "Should return a signed URL");
-
-    // Test /refreshfile
-    console.log("Testing /refreshfile...");
-    const fileId = getFileJson.url.split("fileId=")[1]?.split("&")[0];
-    if (fileId) {
-      const refreshResp = await apiRequest("/refreshfile", {
-        method: "POST",
-        body: JSON.stringify({ fileId }),
-      });
-      assertEquals(refreshResp.status, 200);
-      const refreshJson = await refreshResp.json();
-      assertExists(refreshJson.url, "Should return a refreshed signed URL");
-    }
-  }
-
-  // Test /getfiles
-  console.log("Testing /getfiles...");
-  const getFilesResp = await apiRequest("/getfiles", {
-    method: "POST",
-    body: JSON.stringify({
-      files: [{
-        saveDirectory: firstVideo.saveDirectory || "",
-        fileName: firstVideo.fileName || "placeholder.mp4",
-      }],
-    }),
-  });
-  assertEquals(getFilesResp.status, 200);
-  const getFilesJson = await getFilesResp.json();
-  assertEquals(getFilesJson.status, "success");
-  assertExists(getFilesJson.files, "Should return batch signed URLs");
-  assertEquals(Object.keys(getFilesJson.files).length, 1);
-
-  // Test /delsub (Delete specific video from playlist)
-  console.log("Testing /delsub...");
-  const delSubResp = await apiRequest("/delsub", {
-    method: "POST",
-    body: JSON.stringify({
-      playListUrl: TEST_PLAYLIST_URL,
-      videoUrls: [firstVideo.videoUrl],
-      deleteVideoMappings: true,
-    }),
-  });
-  assertEquals(delSubResp.status, 200);
-  const delSubJson = await delSubResp.json();
-  assertExists(delSubJson.deleted);
-});
-
-Deno.test("Download 1st Video in Dup Test Playlist - POST /download", async () => {
-  // We need to use a video that is already indexed to pass the DB check
-  // Dynamic lookup of the playlist URL to avoid normalization mismatches
-  const getPlayResp = await apiRequest("/getplay", {
-    method: "POST",
-    body: JSON.stringify({}),
-  });
-  const getPlayJson = await getPlayResp.json();
-
-  // Filter out the system "None" playlist to get the one we just added
-  const userPlaylist = getPlayJson.rows.find((p: any) =>
-    p.playlistUrl !== "None"
-  );
-  if (!userPlaylist) {
-    throw new Error(
-      `No user playlist found in /getplay results. Available: ${
-        getPlayJson.rows.map((p: any) => p.playlistUrl).join(", ")
-      }`,
-    );
-  }
-  const actualPlaylistUrl = userPlaylist.playlistUrl;
-
-  // Polling for videos to be indexed (Listing is async)
-  let playJson;
-  for (let i = 0; i < 20; i++) { // Max 60 seconds (20 * 3s)
-    const playResp = await apiRequest("/getsub", {
-      method: "POST",
-      body: JSON.stringify({ url: actualPlaylistUrl }),
-    });
-    playJson = await playResp.json();
-    if (playJson.rows && playJson.rows.length > 0) {
-      break;
-    }
-    await new Promise((r) => setTimeout(r, 3000));
-  }
-
-  if (!playJson.rows || playJson.rows.length === 0) {
-    throw new Error(
-      `No videos found in playlist for download test after polling.`,
-    );
-  }
-
-  const body = {
-    "urlList": [playJson.rows[0].video_metadatum.videoUrl],
-    "playListUrl": actualPlaylistUrl,
-  };
-  const resp = await apiRequest("/download", {
-    method: "POST",
-    body: JSON.stringify(body),
-  });
-  assertEquals(resp.status, 200);
-  const json = await resp.json();
-  assertEquals(json.status, "success");
-});
-
-Deno.test("Update Monitoring for Dup Test Playlist - POST /watch", async () => {
-  const resp = await apiRequest("/watch", {
-    method: "POST",
-    body: JSON.stringify({
-      url: TEST_PLAYLIST_URL,
-      watch: "Full",
-    }),
-  });
-  assertEquals(resp.status, 200);
-  const json = await resp.json();
-  assertEquals(json.status, "success");
-});
-
-Deno.test("Delete Non-existent Playlist - POST /delplay", async () => {
-  const resp = await apiRequest("/delplay", {
-    method: "POST",
-    body: JSON.stringify({
-      playListUrl: "https://example.com/non-existent-playlist",
-      deletePlaylist: true,
-    }),
-  });
-  assertEquals(resp.status, 404);
-});
-
-Deno.test("Delete Non-existent Video from Playlist - POST /delsub", async () => {
-  // First ensure the playlist exists by using the test playlist (will be deleted in the next test)
-  // Actually, the previous test deleted it if it was successful.
-  // Wait, the tests are chained.
-  // Let's use a non-existent playlist first.
-  const resp = await apiRequest("/delsub", {
-    method: "POST",
-    body: JSON.stringify({
-      playListUrl: "https://example.com/non-existent-playlist",
-      videoUrls: ["https://example.com/video1"],
-      deleteVideoMappings: true,
-    }),
-  });
-  assertEquals(resp.status, 404);
-});
-
-Deno.test("Add Dup Test 2 Playlist - POST /list", async () => {
-  console.log("Adding playlist...");
-  const resp = await apiRequest("/list", {
-    method: "POST",
-    body: JSON.stringify({
-      urlList: [TEST_PLAYLIST_URL_2],
-      chunkSize: 9,
-      monitoringType: "N/A",
-      sleep: true,
-    }),
-  });
-  assertEquals(resp.status, 200);
-  const json = await resp.json();
-  assertEquals(json.status, "success");
-
-  // Wait for the background listing to complete (it's a small playlist)
-  console.log("Waiting 30s for listing to complete...");
-  await sleep(30000);
-});
-
-Deno.test("Add an Unlisted video to None Playlist - POST /list", async () => {
-  console.log("Adding playlist...");
-  const resp = await apiRequest("/list", {
-    method: "POST",
-    body: JSON.stringify({
-      urlList: [UNLISTED_VIDEO_URL],
-      chunkSize: 9,
-      monitoringType: "N/A",
-      sleep: true,
-    }),
-  });
-  assertEquals(resp.status, 200);
-  const json = await resp.json();
-  assertEquals(json.status, "success");
-
-  // Wait for the background listing to complete (it's a small playlist)
-  console.log("Waiting 30s for listing to complete...");
-  await sleep(30000);
-});
-
-Deno.test("Verify Sublist in None Playlist - POST /getsub", async () => {
-  console.log("Verifying videos in playlist...");
-  const resp = await apiRequest("/getsub", {
-    method: "POST",
-    body: JSON.stringify({ url: "None" }),
-  });
-  assertEquals(resp.status, 200);
-  const json = await resp.json();
-  assertExists(json.rows, "Response should have rows");
-  assertNotEquals(
-    json.rows.length,
-    0,
-    "Should have at least one video in None",
-  );
-  const firstVideo = json.rows[0].video_metadatum;
-  assertExists(firstVideo, "Video metadata should be present");
-});
-
-Deno.test("Playlist State after adding two playlists and one unlisted video - POST /getplay", async () => {
-  const resp = await apiRequest("/getplay", { method: "POST", body: "{}" });
-  assertEquals(resp.status, 200);
-  const json = await resp.json();
-  // Standard display excludes system playlists (like "None")
-  assertExists(json.rows);
+  // {"count":2,"rows":[{"positionInPlaylist":1,"playlistUrl":"https://www.youtube.com/playlist?list=PL4Oo6H2hGqj0YkYoOLFmrbhsVWfAjCLZw","video_metadatum":{"title":"Run Immich through a docker container on Tailscale","videoId":"PexSJ31niEI","videoUrl":"https://www.youtube.com/watch?v=PexSJ31niEI","downloadStatus":false,"isAvailable":true,"fileName":null,"thumbNailFile":null,"onlineThumbnail":"https://i.ytimg.com/vi/PexSJ31niEI/sddefault.jpg?sqp=-oaymwEmCIAFEOAD8quKqQMa8AEB-AHSBoAC4AOKAgwIABABGFkgWShZMA8=&rs=AOn4CLAcuWHiDO7IaUGPtoIc2p9V4odxhg","subTitleFile":null,"descriptionFile":null,"isMetaDataSynced":false,"saveDirectory":null}},{"positionInPlaylist":2,"playlistUrl":"https://www.youtube.com/playlist?list=PL4Oo6H2hGqj0YkYoOLFmrbhsVWfAjCLZw","video_metadatum":{"title":"Run Immich through a docker container on Tailscale","videoId":"PexSJ31niEI","videoUrl":"https://www.youtube.com/watch?v=PexSJ31niEI","downloadStatus":false,"isAvailable":true,"fileName":null,"thumbNailFile":null,"onlineThumbnail":"https://i.ytimg.com/vi/PexSJ31niEI/sddefault.jpg?sqp=-oaymwEmCIAFEOAD8quKqQMa8AEB-AHSBoAC4AOKAgwIABABGFkgWShZMA8=&rs=AOn4CLAcuWHiDO7IaUGPtoIc2p9V4odxhg","subTitleFile":null,"descriptionFile":null,"isMetaDataSynced":false,"saveDirectory":null}}],"saveDirectory":"Dup Test"}
+  // Validate the above JSON structure
   assertEquals(json.count, 2);
-});
-
-Deno.test("Delete Dup Test Playlist - POST /delplay", async () => {
-  const resp = await apiRequest("/delplay", {
-    method: "POST",
-    body: JSON.stringify({
-      playListUrl: TEST_PLAYLIST_URL,
-      deleteAllVideosInPlaylist: false,
-      deletePlaylist: true,
-      cleanUp: false,
-    }),
-  });
-  assertEquals(resp.status, 200);
-  const json = await resp.json();
-  assertEquals(json.status, "success");
-});
-
-Deno.test("Verify Dup Test Playlist Deleted - POST /getplay", async () => {
-  const resp = await apiRequest("/getplay", { method: "POST", body: "{}" });
-  assertEquals(resp.status, 200);
-  const json = await resp.json();
-  const testPlaylist = json.rows.find((p: Record<string, unknown>) =>
-    p.playlistUrl === TEST_PLAYLIST_URL
+  assertEquals(json.rows.length, 2);
+  assertEquals(json.saveDirectory, "Dup Test");
+  // Row 1
+  assertEquals(json.rows[0].positionInPlaylist, 1);
+  assertEquals(json.rows[0].playlistUrl, PUBLIC_DUP_TEST_PLAYLIST_URL);
+  assertEquals(
+    json.rows[0].video_metadatum.title,
+    "Run Immich through a docker container on Tailscale",
   );
-  assertEquals(testPlaylist, undefined, "Playlist should be deleted");
-});
-
-Deno.test("Delete Dup Test 2 Playlist - POST /delplay", async () => {
-  const resp = await apiRequest("/delplay", {
-    method: "POST",
-    body: JSON.stringify({
-      playListUrl: TEST_PLAYLIST_URL,
-      deleteAllVideosInPlaylist: false,
-      deletePlaylist: true,
-      cleanUp: false,
-    }),
-  });
-  assertEquals(resp.status, 200);
-  const json = await resp.json();
-  assertEquals(json.status, "success");
-});
-
-Deno.test("Verify Dup Test 2 Playlist Deleted - POST /getplay", async () => {
-  const resp = await apiRequest("/getplay", { method: "POST", body: "{}" });
-  assertEquals(resp.status, 200);
-  const json = await resp.json();
-  const testPlaylist = json.rows.find((p: Record<string, unknown>) =>
-    p.playlistUrl === TEST_PLAYLIST_URL
+  assertEquals(json.rows[0].video_metadatum.videoId, "PexSJ31niEI");
+  assertEquals(
+    json.rows[0].video_metadatum.videoUrl,
+    "https://www.youtube.com/watch?v=PexSJ31niEI",
   );
-  assertEquals(testPlaylist, undefined, "Playlist should be deleted");
+  assertEquals(json.rows[0].video_metadatum.downloadStatus, false);
+  assertEquals(json.rows[0].video_metadatum.isAvailable, true);
+  assertEquals(json.rows[0].video_metadatum.fileName, null);
+  assertEquals(json.rows[0].video_metadatum.thumbNailFile, null);
+  assertEquals(
+    json.rows[0].video_metadatum.onlineThumbnail,
+    "https://i.ytimg.com/vi/PexSJ31niEI/sddefault.jpg?sqp=-oaymwEmCIAFEOAD8quKqQMa8AEB-AHSBoAC4AOKAgwIABABGFkgWShZMA8=&rs=AOn4CLAcuWHiDO7IaUGPtoIc2p9V4odxhg",
+  );
+  assertEquals(json.rows[0].video_metadatum.subTitleFile, null);
+  assertEquals(json.rows[0].video_metadatum.descriptionFile, null);
+  assertEquals(json.rows[0].video_metadatum.isMetaDataSynced, false);
+  assertEquals(json.rows[0].video_metadatum.saveDirectory, null);
+  // Row 2
+  assertEquals(json.rows[1].positionInPlaylist, 2);
+  assertEquals(json.rows[1].playlistUrl, PUBLIC_DUP_TEST_PLAYLIST_URL);
+  assertEquals(
+    json.rows[1].video_metadatum.title,
+    "Run Immich through a docker container on Tailscale",
+  );
+  assertEquals(json.rows[1].video_metadatum.videoId, "PexSJ31niEI");
+  assertEquals(
+    json.rows[1].video_metadatum.videoUrl,
+    "https://www.youtube.com/watch?v=PexSJ31niEI",
+  );
+  assertEquals(json.rows[1].video_metadatum.downloadStatus, false);
+  assertEquals(json.rows[1].video_metadatum.isAvailable, true);
+  assertEquals(json.rows[1].video_metadatum.fileName, null);
+  assertEquals(json.rows[1].video_metadatum.thumbNailFile, null);
+  assertEquals(
+    json.rows[1].video_metadatum.onlineThumbnail,
+    "https://i.ytimg.com/vi/PexSJ31niEI/sddefault.jpg?sqp=-oaymwEmCIAFEOAD8quKqQMa8AEB-AHSBoAC4AOKAgwIABABGFkgWShZMA8=&rs=AOn4CLAcuWHiDO7IaUGPtoIc2p9V4odxhg",
+  );
+  assertEquals(json.rows[1].video_metadatum.subTitleFile, null);
+  assertEquals(json.rows[1].video_metadatum.descriptionFile, null);
+  assertEquals(json.rows[1].video_metadatum.isMetaDataSynced, false);
+  assertEquals(json.rows[1].video_metadatum.saveDirectory, null);
+  // Finally export the response for next step
+  getSubListResponse = json;
 });
 
-Deno.test("Final Playlist State - POST /getplay", async () => {
-  const resp = await apiRequest("/getplay", { method: "POST", body: "{}" });
-  assertEquals(resp.status, 200);
-  const json = await resp.json();
-  // Standard display excludes system playlists (like "None")
-  assertExists(json.rows);
-  assertEquals(json.count, 0);
-});
+// Done till above
+// Next steps
+// 1. Download the first video but because both the videos in the Dup Test playlist are same downloading one downloads both videos.
+// Download Req: {"urlList":["https://www.youtube.com/watch?v=PexSJ31niEI"],"playListUrl":"https://www.youtube.com/playlist?list=PL4Oo6H2hGqj0YkYoOLFmrbhsVWfAjCLZw"}
+// Download Res: {"status":"success","message":"Downloads initiated","items":[{"url":"https://www.youtube.com/watch?v=PexSJ31niEI","title":"Run Immich through a docker container on Tailscale","saveDirectory":"Dup Test","videoId":"PexSJ31niEI"}]}
+// 2. Get the subList again after download and assert that the download is done and assert all the new fields
+// SubList Req: {"start":0,"stop":8,"sortDownloaded":false,"query":"","url":"https://www.youtube.com/playlist?list=PL4Oo6H2hGqj0YkYoOLFmrbhsVWfAjCLZw"}
+// SubList Res: {"count":2,"rows":[{"positionInPlaylist":1,"playlistUrl":"https://www.youtube.com/playlist?list=PL4Oo6H2hGqj0YkYoOLFmrbhsVWfAjCLZw","video_metadatum":{"title":"Run Immich through a docker container on Tailscale","videoId":"PexSJ31niEI","videoUrl":"https://www.youtube.com/watch?v=PexSJ31niEI","downloadStatus":true,"isAvailable":true,"fileName":"PexSJ31niEI.mkv","thumbNailFile":"PexSJ31niEI.webp","onlineThumbnail":"https://i.ytimg.com/vi/PexSJ31niEI/sddefault.jpg?sqp=-oaymwEmCIAFEOAD8quKqQMa8AEB-AHSBoAC4AOKAgwIABABGFkgWShZMA8=&rs=AOn4CLAcuWHiDO7IaUGPtoIc2p9V4odxhg","subTitleFile":null,"descriptionFile":"PexSJ31niEI.description","isMetaDataSynced":true,"saveDirectory":"Dup Test"}},{"positionInPlaylist":2,"playlistUrl":"https://www.youtube.com/playlist?list=PL4Oo6H2hGqj0YkYoOLFmrbhsVWfAjCLZw","video_metadatum":{"title":"Run Immich through a docker container on Tailscale","videoId":"PexSJ31niEI","videoUrl":"https://www.youtube.com/watch?v=PexSJ31niEI","downloadStatus":true,"isAvailable":true,"fileName":"PexSJ31niEI.mkv","thumbNailFile":"PexSJ31niEI.webp","onlineThumbnail":"https://i.ytimg.com/vi/PexSJ31niEI/sddefault.jpg?sqp=-oaymwEmCIAFEOAD8quKqQMa8AEB-AHSBoAC4AOKAgwIABABGFkgWShZMA8=&rs=AOn4CLAcuWHiDO7IaUGPtoIc2p9V4odxhg","subTitleFile":null,"descriptionFile":"PexSJ31niEI.description","isMetaDataSynced":true,"saveDirectory":"Dup Test"}}],"saveDirectory":"Dup Test"}
+// 3. Get Files
+// Get Files Req: {"files":[{"saveDirectory":"Dup Test","fileName":"PexSJ31niEI.webp"},{"saveDirectory":"Dup Test","fileName":"PexSJ31niEI.webp"}]}
+// Get Files Res: {"status":"success","files":{"PexSJ31niEI.webp":"51eab7a2-04ba-4ed8-bd03-3849f507ee5c"}}
+// 4. Get File
+// Get File Req: {"saveDirectory":"Dup Test","fileName":"PexSJ31niEI.mkv"}
+// Get File Res: {"status":"success","signedUrlId":"c83617d3-c6ab-486f-a918-6040a6709f92","expiry":1776520862781}
+// 5. Get a file content
+// Get File Req: GET http://localhost:8888/ytdiff/getfile?fileId=b1d4e25f-475f-47fe-bed8-2d68a277c134
+// Get File Res: The Raw File
+// 6. Refresh File
+// Refresh File Req:
+// Refresh File Res:
+// 7. Delete only the dowloaded file -> Refetch the sub list to see if the files truly got deleted
+// Delete File Req: {"playListUrl":"https://www.youtube.com/playlist?list=PL4Oo6H2hGqj0YkYoOLFmrbhsVWfAjCLZw","videoUrls":["https://www.youtube.com/watch?v=PexSJ31niEI"],"cleanUp":true,"deleteVideoMappings":false,"deleteVideosInDB":false}
+// Delete File Res: {"message":"Processed 1 video(s) from playlist Dup Test","deleted":["https://www.youtube.com/watch?v=PexSJ31niEI"],"failed":[],"cleanUp":true,"deleteVideoMappings":false,"deleteVideosInDB":false}
+// 8. Get the subList again after delete and assert that the downloaded files are deleted and
+// SubList Req: {"start":0,"stop":8,"sortDownloaded":false,"query":"","url":"https://www.youtube.com/playlist?list=PL4Oo6H2hGqj0YkYoOLFmrbhsVWfAjCLZw"}
+// SubList Res: {"count":2,"rows":[{"positionInPlaylist":1,"playlistUrl":"https://www.youtube.com/playlist?list=PL4Oo6H2hGqj0YkYoOLFmrbhsVWfAjCLZw","video_metadatum":{"title":"Run Immich through a docker container on Tailscale","videoId":"PexSJ31niEI","videoUrl":"https://www.youtube.com/watch?v=PexSJ31niEI","downloadStatus":false,"isAvailable":true,"fileName":null,"thumbNailFile":null,"onlineThumbnail":"https://i.ytimg.com/vi/PexSJ31niEI/sddefault.jpg?sqp=-oaymwEmCIAFEOAD8quKqQMa8AEB-AHSBoAC4AOKAgwIABABGFkgWShZMA8=&rs=AOn4CLAcuWHiDO7IaUGPtoIc2p9V4odxhg","subTitleFile":null,"descriptionFile":null,"isMetaDataSynced":true,"saveDirectory":null}},{"positionInPlaylist":2,"playlistUrl":"https://www.youtube.com/playlist?list=PL4Oo6H2hGqj0YkYoOLFmrbhsVWfAjCLZw","video_metadatum":{"title":"Run Immich through a docker container on Tailscale","videoId":"PexSJ31niEI","videoUrl":"https://www.youtube.com/watch?v=PexSJ31niEI","downloadStatus":false,"isAvailable":true,"fileName":null,"thumbNailFile":null,"onlineThumbnail":"https://i.ytimg.com/vi/PexSJ31niEI/sddefault.jpg?sqp=-oaymwEmCIAFEOAD8quKqQMa8AEB-AHSBoAC4AOKAgwIABABGFkgWShZMA8=&rs=AOn4CLAcuWHiDO7IaUGPtoIc2p9V4odxhg","subTitleFile":null,"descriptionFile":null,"isMetaDataSynced":true,"saveDirectory":null}}],"saveDirectory":"Dup Test"}
+// 9. Finally delete a single video from a playlist (since both videos are same they both get delted, will fix this later add as an issue for now)
+// Delete Vide Req: {"playListUrl":"https://www.youtube.com/playlist?list=PL4Oo6H2hGqj0YkYoOLFmrbhsVWfAjCLZw","videoUrls":["https://www.youtube.com/watch?v=PexSJ31niEI"],"cleanUp":false,"deleteVideoMappings":true,"deleteVideosInDB":false}
+// Delete Video Res: {"message":"Processed 1 video(s) from playlist Dup Test","deleted":["https://www.youtube.com/watch?v=PexSJ31niEI"],"failed":[],"cleanUp":false,"deleteVideoMappings":true,"deleteVideosInDB":false}
+// 10. Change the monitoring type of a playlist
+// Watch Req: {"url":"https://www.youtube.com/playlist?list=PL4Oo6H2hGqj0YkYoOLFmrbhsVWfAjCLZw","watch":"Full"}
+// Watch Res: {"status":"success","message":"Monitoring type updated successfully"}
+// 11. Get the playlists again to see the change in the monitting type
+// Get Play Req: {"start":0,"stop":10,"sort":"1","order":"1","query":""}
+// Get Play Res: {"count":1,"rows":[{"playlistUrl":"https://www.youtube.com/playlist?list=PL4Oo6H2hGqj0YkYoOLFmrbhsVWfAjCLZw","title":"Dup Test","sortOrder":0,"monitoringType":"Full","saveDirectory":"Dup Test","createdAt":"2026-04-18T12:34:21.994Z","updatedAt":"2026-04-18T12:34:21.994Z","lastUpdatedByScheduler":"2026-04-18T12:34:21.990Z"}]}
+// 12. Delete the playlist
+// Delete Play Req: {"playListUrl":"https://www.youtube.com/playlist?list=PL4Oo6H2hGqj0YkYoOLFmrbhsVWfAjCLZw","deleteAllVideosInPlaylist":false,"deletePlaylist":true,"cleanUp":false}
+// Delete Play Res: {"status":"success","message":"Deleted playlist Dup Test","cleanUp":false,"deletePlaylist":true,"deleteAllVideosInPlaylist":false}
+// 13. Add Dup Test 2 Playlist
+// List Req: {"urlList":["https://www.youtube.com/playlist?list=PL4Oo6H2hGqj2fQCpmX2zfytLqD2Qv7yZY"],"chunkSize":9,"monitoringType":"N/A","sleep":true}
+// List Res: {"status":"success","message":"Listing initiated","items":[{"url":"https://www.youtube.com/playlist?list=PL4Oo6H2hGqj2fQCpmX2zfytLqD2Qv7yZY","type":"undetermined","currentMonitoringType":"N/A","reason":"URL not found in database"}]}
+// 14. Get Play for the new playlist (there should be only one item this one at this point)
+// Get Play Req: {"start":0,"stop":10,"sort":"1","order":"1","query":""}
+// Get Play Res: {"count":1,"rows":[{"playlistUrl":"https://www.youtube.com/playlist?list=PL4Oo6H2hGqj2fQCpmX2zfytLqD2Qv7yZY","title":"Dup Test 2","sortOrder":0,"monitoringType":"N/A","saveDirectory":"Dup Test 2","createdAt":"2026-04-18T13:29:04.184Z","updatedAt":"2026-04-18T13:29:04.184Z","lastUpdatedByScheduler":"2026-04-18T13:29:04.180Z"}]}
+// 15. Get the sub list for this playlist (there should be only one item as there is only one item in this playlist)
+// Req: {"start":0,"stop":8,"sortDownloaded":false,"query":"","url":"https://www.youtube.com/playlist?list=PL4Oo6H2hGqj2fQCpmX2zfytLqD2Qv7yZY"}
+// Res: {"count":1,"rows":[{"positionInPlaylist":1,"playlistUrl":"https://www.youtube.com/playlist?list=PL4Oo6H2hGqj2fQCpmX2zfytLqD2Qv7yZY","video_metadatum":{"title":"Run Immich through a docker container on Tailscale","videoId":"PexSJ31niEI","videoUrl":"https://www.youtube.com/watch?v=PexSJ31niEI","downloadStatus":false,"isAvailable":true,"fileName":null,"thumbNailFile":null,"onlineThumbnail":"https://i.ytimg.com/vi/PexSJ31niEI/sddefault.jpg?sqp=-oaymwEmCIAFEOAD8quKqQMa8AEB-AHSBoAC4AOKAgwIABABGFkgWShZMA8=&rs=AOn4CLAcuWHiDO7IaUGPtoIc2p9V4odxhg","subTitleFile":null,"descriptionFile":null,"isMetaDataSynced":false,"saveDirectory":null}}],"saveDirectory":"Dup Test 2"}
+// 16. Unlink the videos in this playlist (del play)
+// Del play Req: {"playListUrl":"https://www.youtube.com/playlist?list=PL4Oo6H2hGqj2fQCpmX2zfytLqD2Qv7yZY","deleteAllVideosInPlaylist":true,"deletePlaylist":false,"cleanUp":false}
+// Del play Res: {"status":"success","message":"Removed all video references from playlist Dup Test 2","cleanUp":false,"deletePlaylist":false,"deleteAllVideosInPlaylist":true}
+// 17. Add the Unlisted playlist
+// Req: {"urlList":["https://www.youtube.com/playlist?list=PL4Oo6H2hGqj0iN_y58yjymtLFKC9qULfs"],"chunkSize":9,"monitoringType":"N/A","sleep":true}
+// Res: {"status":"success","message":"Listing initiated","items":[{"url":"https://www.youtube.com/playlist?list=PL4Oo6H2hGqj0iN_y58yjymtLFKC9qULfs","type":"undetermined","currentMonitoringType":"N/A","reason":"URL not found in database"}]}
+// 18. Get Playlists (there should be two items now)
+// Req: {"start":0,"stop":10,"sort":"1","order":"1","query":""}
+// Res: {"count":2,"rows":[{"playlistUrl":"https://www.youtube.com/playlist?list=PL4Oo6H2hGqj2fQCpmX2zfytLqD2Qv7yZY","title":"Dup Test 2","sortOrder":0,"monitoringType":"N/A","saveDirectory":"Dup Test 2","createdAt":"2026-04-18T13:29:04.184Z","updatedAt":"2026-04-18T13:29:04.184Z","lastUpdatedByScheduler":"2026-04-18T13:29:04.180Z"},{"playlistUrl":"https://www.youtube.com/playlist?list=PL4Oo6H2hGqj0iN_y58yjymtLFKC9qULfs","title":"E7 Shorts","sortOrder":1,"monitoringType":"N/A","saveDirectory":"E7 Shorts","createdAt":"2026-04-18T13:34:46.517Z","updatedAt":"2026-04-18T13:34:46.517Z","lastUpdatedByScheduler":"2026-04-18T13:34:46.515Z"}]}
+// 19. Get sub for the unlisted playlist
+// Req: {"start":0,"stop":8,"sortDownloaded":false,"query":"","url":"https://www.youtube.com/playlist?list=PL4Oo6H2hGqj0iN_y58yjymtLFKC9qULfs"}
+// Res: {"count":2,"rows":[{"positionInPlaylist":1,"playlistUrl":"https://www.youtube.com/playlist?list=PL4Oo6H2hGqj0iN_y58yjymtLFKC9qULfs","video_metadatum":{"title":"Good Pets Epic Seven","videoId":"kr2lsFN_aM8","videoUrl":"https://www.youtube.com/watch?v=kr2lsFN_aM8","downloadStatus":false,"isAvailable":true,"fileName":null,"thumbNailFile":null,"onlineThumbnail":"https://i.ytimg.com/vi/kr2lsFN_aM8/maxresdefault.jpg","subTitleFile":null,"descriptionFile":null,"isMetaDataSynced":false,"saveDirectory":null}},{"positionInPlaylist":2,"playlistUrl":"https://www.youtube.com/playlist?list=PL4Oo6H2hGqj0iN_y58yjymtLFKC9qULfs","video_metadatum":{"title":"Screenrecording 20201222 143136 com stove epic7 google","videoId":"h0OdOdLtuQM","videoUrl":"https://www.youtube.com/watch?v=h0OdOdLtuQM","downloadStatus":false,"isAvailable":true,"fileName":null,"thumbNailFile":null,"onlineThumbnail":"https://i.ytimg.com/vi/h0OdOdLtuQM/maxresdefault.jpg","subTitleFile":null,"descriptionFile":null,"isMetaDataSynced":false,"saveDirectory":null}}],"saveDirectory":"E7 Shorts"}
+// 20. Delete everthing for the unlisted playlist
+// Req: {"playListUrl":"https://www.youtube.com/playlist?list=PL4Oo6H2hGqj0iN_y58yjymtLFKC9qULfs","deleteAllVideosInPlaylist":true,"deletePlaylist":true,"cleanUp":true}
+// Res: {"status":"success","message":"Removed all video references from playlist E7 Shorts and deleted playlist and cleaned up playlist directory","cleanUp":true,"deletePlaylist":true,"deleteAllVideosInPlaylist":true}
+// 21. Get Playlists again (Now there should be one playlist, the dup test 2 playlist)
+// Req: {"start":0,"stop":10,"sort":"1","order":"1","query":""}
+// Res: {"count":1,"rows":[{"playlistUrl":"https://www.youtube.com/playlist?list=PL4Oo6H2hGqj2fQCpmX2zfytLqD2Qv7yZY","title":"Dup Test 2","sortOrder":0,"monitoringType":"N/A","saveDirectory":"Dup Test 2","createdAt":"2026-04-18T13:29:04.184Z","updatedAt":"2026-04-18T13:29:04.184Z","lastUpdatedByScheduler":"2026-04-18T13:29:04.180Z"}]}
+// 22. Delete the dup test 2 playlist
+// Req: {"playListUrl":"https://www.youtube.com/playlist?list=PL4Oo6H2hGqj2fQCpmX2zfytLqD2Qv7yZY","deleteAllVideosInPlaylist":true,"deletePlaylist":true,"cleanUp":true}
+// Res: {"status":"success","message":"Removed all video references from playlist Dup Test 2 and deleted playlist and cleaned up playlist directory","cleanUp":true,"deletePlaylist":true,"deleteAllVideosInPlaylist":true}
+// 23. Get Playlists again (there should be no playlists now)
+// Req: {"start":0,"stop":10,"sort":"1","order":"1","query":""}
+// Res: {"count":0,"rows":[]}
