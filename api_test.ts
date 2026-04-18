@@ -9,14 +9,17 @@ import { assertEquals, assertExists, assertNotEquals } from "std/assert/mod.ts";
 
 const BASE_URL = Deno.env.get("API_BASE_URL") || "http://localhost:8888/ytdiff";
 const TEST_PLAYLIST_URL =
-  "https://www.youtube.com/watch?v=PexSJ31niEI&list=PL4Oo6H2hGqj0YkYoOLFmrbhsVWfAjCLZw"; // Dup Test
+  "https://www.youtube.com/playlist?list=PL4Oo6H2hGqj0YkYoOLFmrbhsVWfAjCLZw"; // Dup Test
+const TEST_PLAYLIST_URL_2 =
+  "https://www.youtube.com/playlist?list=PL4Oo6H2hGqj2fQCpmX2zfytLqD2Qv7yZY"; // Dup Test 2
+const UNLISTED_VIDEO_URL = "https://www.youtube.com/watch?v=AjiJugg-9UQ";
 const testUser = {
-  userName: `testuser_${Math.random().toString(36).substring(2, 8)}`,
-  password: "testpassword123",
+  userName: `testuser_123`,
+  password: "testpassword_123",
 };
 
-let token = "";
-
+let token =
+  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6ImJkYzMxODA2LTFjZTEtNDE2Mi05OGRlLTk2MjI3ODUyNzQzMiIsImxhc3RQYXNzd29yZENoYW5nZVRpbWUiOiIyMDI2LTA0LTE4VDA4OjAwOjMxLjc5MloiLCJpYXQiOjE3NzY1MDAwMzIsImV4cCI6MTc3OTE3ODQzMn0.XfNayYgg36yk5t1BCbjcaNnXcrBZ4E0ZhmQIIAP3F7A";
 // Helper to wait
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -116,6 +119,18 @@ Deno.test("User Login - Invalid Credentials - POST /login", async () => {
   await resp.text();
 });
 
+Deno.test("Verify Initial Sublist in None Playlist - POST /getsub", async () => {
+  console.log("Verifying videos in playlist...");
+  const resp = await apiRequest("/getsub", {
+    method: "POST",
+    body: JSON.stringify({ url: "None" }),
+  });
+  assertEquals(resp.status, 200);
+  const json = await resp.json();
+  // Should be empty
+  assertEquals(json.rows.length, 0);
+});
+
 Deno.test("Initial Playlist State - POST /getplay", async () => {
   const resp = await apiRequest("/getplay", { method: "POST", body: "{}" });
   assertEquals(resp.status, 200);
@@ -125,7 +140,7 @@ Deno.test("Initial Playlist State - POST /getplay", async () => {
   assertEquals(json.count, 0);
 });
 
-Deno.test("Add Playlist - POST /list", async () => {
+Deno.test("Add Dup Test Playlist - POST /list", async () => {
   console.log("Adding playlist...");
   const resp = await apiRequest("/list", {
     method: "POST",
@@ -145,7 +160,7 @@ Deno.test("Add Playlist - POST /list", async () => {
   await sleep(30000);
 });
 
-Deno.test("Verify Playlist Added - POST /getplay", async () => {
+Deno.test("Verify Dup Test Playlist Added - POST /getplay", async () => {
   console.log("Verifying playlist added...");
   const resp = await apiRequest("/getplay", { method: "POST", body: "{}" });
   assertEquals(resp.status, 200);
@@ -163,7 +178,7 @@ Deno.test("Verify Playlist Added - POST /getplay", async () => {
   assertEquals(testPlaylist.title, "Dup Test");
 });
 
-Deno.test("Verify Videos in Playlist - POST /getsub", async () => {
+Deno.test("Verify Videos in Dup Test Playlist - POST /getsub", async () => {
   console.log("Verifying videos in playlist...");
   const resp = await apiRequest("/getsub", {
     method: "POST",
@@ -179,17 +194,18 @@ Deno.test("Verify Videos in Playlist - POST /getsub", async () => {
   );
   const firstVideo = json.rows[0].video_metadatum;
   assertExists(firstVideo, "Video metadata should be present");
-  const VIDEO_URL_FOR_DOWNLOAD = firstVideo.videoUrl;
 
   // Test /getfile
   const rawFileName = firstVideo.fileName;
-  const fileName = (typeof rawFileName === "string" && rawFileName.length > 0) ? rawFileName : "placeholder.mp4";
+  const fileName = (typeof rawFileName === "string" && rawFileName.length > 0)
+    ? rawFileName
+    : "placeholder.mp4";
   const saveDirectory = firstVideo.saveDirectory || "Dup Test";
-  
+
   console.log("Testing /getfile with:", {
     saveDirectory,
     fileName,
-    rawFileName
+    rawFileName,
   });
   const getFileResp = await apiRequest("/getfile", {
     method: "POST",
@@ -261,16 +277,25 @@ Deno.test("Verify Videos in Playlist - POST /getsub", async () => {
   assertExists(delSubJson.deleted);
 });
 
-Deno.test("Download Requests - POST /download", async () => {
+Deno.test("Download 1st Video in Dup Test Playlist - POST /download", async () => {
   // We need to use a video that is already indexed to pass the DB check
   // Dynamic lookup of the playlist URL to avoid normalization mismatches
-  const getPlayResp = await apiRequest("/getplay", { method: "POST", body: JSON.stringify({}) });
+  const getPlayResp = await apiRequest("/getplay", {
+    method: "POST",
+    body: JSON.stringify({}),
+  });
   const getPlayJson = await getPlayResp.json();
 
   // Filter out the system "None" playlist to get the one we just added
-  const userPlaylist = getPlayJson.rows.find((p: any) => p.playlistUrl !== "None");
+  const userPlaylist = getPlayJson.rows.find((p: any) =>
+    p.playlistUrl !== "None"
+  );
   if (!userPlaylist) {
-    throw new Error(`No user playlist found in /getplay results. Available: ${getPlayJson.rows.map((p: any) => p.playlistUrl).join(", ")}`);
+    throw new Error(
+      `No user playlist found in /getplay results. Available: ${
+        getPlayJson.rows.map((p: any) => p.playlistUrl).join(", ")
+      }`,
+    );
   }
   const actualPlaylistUrl = userPlaylist.playlistUrl;
 
@@ -285,27 +310,29 @@ Deno.test("Download Requests - POST /download", async () => {
     if (playJson.rows && playJson.rows.length > 0) {
       break;
     }
-    await new Promise(r => setTimeout(r, 3000));
+    await new Promise((r) => setTimeout(r, 3000));
   }
-  
-  if (!playJson.rows || playJson.rows.length === 0) {
-    throw new Error(`No videos found in playlist for download test after polling.`);
-  }
-  
-  const videoUrl = playJson.rows[0].video_metadatum.videoUrl;
 
+  if (!playJson.rows || playJson.rows.length === 0) {
+    throw new Error(
+      `No videos found in playlist for download test after polling.`,
+    );
+  }
+
+  const body = {
+    "urlList": [playJson.rows[0].video_metadatum.videoUrl],
+    "playListUrl": actualPlaylistUrl,
+  };
   const resp = await apiRequest("/download", {
     method: "POST",
-    body: JSON.stringify({
-      urlList: [videoUrl],
-    }),
+    body: JSON.stringify(body),
   });
   assertEquals(resp.status, 200);
   const json = await resp.json();
   assertEquals(json.status, "success");
 });
 
-Deno.test("Update Monitoring - POST /watch", async () => {
+Deno.test("Update Monitoring for Dup Test Playlist - POST /watch", async () => {
   const resp = await apiRequest("/watch", {
     method: "POST",
     body: JSON.stringify({
@@ -331,8 +358,8 @@ Deno.test("Delete Non-existent Playlist - POST /delplay", async () => {
 
 Deno.test("Delete Non-existent Video from Playlist - POST /delsub", async () => {
   // First ensure the playlist exists by using the test playlist (will be deleted in the next test)
-  // Actually, the previous test deleted it if it was successful. 
-  // Wait, the tests are chained. 
+  // Actually, the previous test deleted it if it was successful.
+  // Wait, the tests are chained.
   // Let's use a non-existent playlist first.
   const resp = await apiRequest("/delsub", {
     method: "POST",
@@ -345,14 +372,81 @@ Deno.test("Delete Non-existent Video from Playlist - POST /delsub", async () => 
   assertEquals(resp.status, 404);
 });
 
-Deno.test("Delete Playlist - POST /delplay", async () => {
+Deno.test("Add Dup Test 2 Playlist - POST /list", async () => {
+  console.log("Adding playlist...");
+  const resp = await apiRequest("/list", {
+    method: "POST",
+    body: JSON.stringify({
+      urlList: [TEST_PLAYLIST_URL_2],
+      chunkSize: 9,
+      monitoringType: "N/A",
+      sleep: true,
+    }),
+  });
+  assertEquals(resp.status, 200);
+  const json = await resp.json();
+  assertEquals(json.status, "success");
+
+  // Wait for the background listing to complete (it's a small playlist)
+  console.log("Waiting 30s for listing to complete...");
+  await sleep(30000);
+});
+
+Deno.test("Add an Unlisted video to None Playlist - POST /list", async () => {
+  console.log("Adding playlist...");
+  const resp = await apiRequest("/list", {
+    method: "POST",
+    body: JSON.stringify({
+      urlList: [UNLISTED_VIDEO_URL],
+      chunkSize: 9,
+      monitoringType: "N/A",
+      sleep: true,
+    }),
+  });
+  assertEquals(resp.status, 200);
+  const json = await resp.json();
+  assertEquals(json.status, "success");
+
+  // Wait for the background listing to complete (it's a small playlist)
+  console.log("Waiting 30s for listing to complete...");
+  await sleep(30000);
+});
+
+Deno.test("Verify Sublist in None Playlist - POST /getsub", async () => {
+  console.log("Verifying videos in playlist...");
+  const resp = await apiRequest("/getsub", {
+    method: "POST",
+    body: JSON.stringify({ url: "None" }),
+  });
+  assertEquals(resp.status, 200);
+  const json = await resp.json();
+  assertExists(json.rows, "Response should have rows");
+  assertNotEquals(
+    json.rows.length,
+    0,
+    "Should have at least one video in None",
+  );
+  const firstVideo = json.rows[0].video_metadatum;
+  assertExists(firstVideo, "Video metadata should be present");
+});
+
+Deno.test("Playlist State after adding two playlists and one unlisted video - POST /getplay", async () => {
+  const resp = await apiRequest("/getplay", { method: "POST", body: "{}" });
+  assertEquals(resp.status, 200);
+  const json = await resp.json();
+  // Standard display excludes system playlists (like "None")
+  assertExists(json.rows);
+  assertEquals(json.count, 2);
+});
+
+Deno.test("Delete Dup Test Playlist - POST /delplay", async () => {
   const resp = await apiRequest("/delplay", {
     method: "POST",
     body: JSON.stringify({
       playListUrl: TEST_PLAYLIST_URL,
-      deleteAllVideosInPlaylist: true,
+      deleteAllVideosInPlaylist: false,
       deletePlaylist: true,
-      cleanUp: true,
+      cleanUp: false,
     }),
   });
   assertEquals(resp.status, 200);
@@ -360,7 +454,7 @@ Deno.test("Delete Playlist - POST /delplay", async () => {
   assertEquals(json.status, "success");
 });
 
-Deno.test("Verify Playlist Deleted - POST /getplay", async () => {
+Deno.test("Verify Dup Test Playlist Deleted - POST /getplay", async () => {
   const resp = await apiRequest("/getplay", { method: "POST", body: "{}" });
   assertEquals(resp.status, 200);
   const json = await resp.json();
@@ -368,4 +462,38 @@ Deno.test("Verify Playlist Deleted - POST /getplay", async () => {
     p.playlistUrl === TEST_PLAYLIST_URL
   );
   assertEquals(testPlaylist, undefined, "Playlist should be deleted");
+});
+
+Deno.test("Delete Dup Test 2 Playlist - POST /delplay", async () => {
+  const resp = await apiRequest("/delplay", {
+    method: "POST",
+    body: JSON.stringify({
+      playListUrl: TEST_PLAYLIST_URL,
+      deleteAllVideosInPlaylist: false,
+      deletePlaylist: true,
+      cleanUp: false,
+    }),
+  });
+  assertEquals(resp.status, 200);
+  const json = await resp.json();
+  assertEquals(json.status, "success");
+});
+
+Deno.test("Verify Dup Test 2 Playlist Deleted - POST /getplay", async () => {
+  const resp = await apiRequest("/getplay", { method: "POST", body: "{}" });
+  assertEquals(resp.status, 200);
+  const json = await resp.json();
+  const testPlaylist = json.rows.find((p: Record<string, unknown>) =>
+    p.playlistUrl === TEST_PLAYLIST_URL
+  );
+  assertEquals(testPlaylist, undefined, "Playlist should be deleted");
+});
+
+Deno.test("Final Playlist State - POST /getplay", async () => {
+  const resp = await apiRequest("/getplay", { method: "POST", body: "{}" });
+  assertEquals(resp.status, 200);
+  const json = await resp.json();
+  // Standard display excludes system playlists (like "None")
+  assertExists(json.rows);
+  assertEquals(json.count, 0);
 });

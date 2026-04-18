@@ -38,11 +38,6 @@ services:
         condition: service_healthy
       valkey-test:
         condition: service_healthy
-    volumes:
-      - ../src:/app/src
-      - ../index.ts:/app/index.ts
-      - ../deno.json:/app/deno.json
-      - ../deno.lock:/app/deno.lock
     environment:
       - PROTOCOL=http
       - HOSTNAME=localhost
@@ -56,7 +51,7 @@ services:
       - SECRET_KEY=testsecretkey
       - SAVE_PATH=/app/downloads
       - ALLOW_REGISTRATION=true
-      - LOG_LEVELS=debug
+      - LOG_LEVELS=trace
     tmpfs:
       - /app/downloads
     ports:
@@ -67,6 +62,7 @@ services:
       timeout: 5s
       start_period: 10s
       retries: 5
+
   test-runner:
     build:
       context: .
