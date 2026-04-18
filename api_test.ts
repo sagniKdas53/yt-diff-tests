@@ -6,7 +6,7 @@
  */
 
 import { assertEquals, assertExists, assertNotEquals } from "std/assert/mod.ts";
-import { io } from "socket.io-client";
+//import { io } from "socket.io-client";
 
 const BASE_URL = Deno.env.get("API_BASE_URL") || "http://localhost:8888/ytdiff";
 const PUBLIC_DUP_TEST_PLAYLIST_URL =
@@ -38,7 +38,7 @@ let responseJson = {};
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 // Need to connect to socket to verify socket based responses.
-const url = new URL(BASE_URL);
+/* const url = new URL(BASE_URL);
 const base = url.origin;
 const path = url.pathname;
 const socket = io(base, {
@@ -46,6 +46,239 @@ const socket = io(base, {
   auth: { token },
   forceNew: true,
 });
+
+useEffect(() => {
+        if (!socket) return; // guard
+
+        // helpers
+        const nowTag = () => Date.now().toString();
+
+        // Handlers (use refs for any "current" state / callbacks)
+        const onInit = (data) => {
+            setConnectionId(data.id);
+
+            updateActiveDownloads(prev => Object.keys(prev).length ? {} : prev);
+            setActiveListingCount(prev => {
+                activeListingCountRef.current = 0;
+                return prev !== 0 ? 0 : prev;
+            });
+            // call latest callback
+            toggleProgressCallBackRef.current && toggleProgressCallBackRef.current(false);
+            setSnackRef.current && setSnackRef.current("Connected to Backend", "success");
+            socket.emit("acknowledge", { data: "Connected", id: data.id });
+        };
+
+        const onError = (data) => {
+            setSnackRef.current && setSnackRef.current(`${data.message}`, "error");
+        };
+
+        const onTokenExpired = () => {
+            setSnackRef.current && setSnackRef.current("Your session has expired.", "error");
+            setToken(null);
+            localStorage.setItem("ytdiff_token", "null");
+        };
+
+        const onConnectionError = () => setSnackRef.current && setSnackRef.current("Server is currently at maximum capacity.", "error");
+
+        const removeActiveDownload = (url) => {
+            updateActiveDownloads(prev => {
+                const next = { ...prev };
+                delete next[url];
+                return next;
+            });
+        };
+
+        const onDownloadStarted = (data) => {
+            //console.log("[Socket] download-started", data);
+            const url = data.url || "unknown";
+            const percent = isNaN(+data.percentage) ? 0 : +data.percentage;
+            updateActiveDownloads(prev => ({ ...prev, [url]: percent }));
+            toggleProgressCallBackRef.current && toggleProgressCallBackRef.current(false);
+        };
+
+        const onDownloadDone = (data) => {
+            //console.log("[Socket] download-done", data);
+            removeActiveDownload(data.url);
+            downloadedItem.current = {
+                url: data.url,
+                title: data.title,
+                fileName: data.fileName || null,
+                saveDirectory: data.saveDirectory || null,
+                isMetaDataSynced: data.isMetaDataSynced || null,
+                thumbNailFile: data.thumbNailFile || null,
+                onlineThumbnail: data.onlineThumbnail || null,
+                subTitleFile: data.subTitleFile || null,
+                descriptionFile: data.descriptionFile || null,
+            };
+            setSnackRef.current && setSnackRef.current(`${data.title}`, "success");
+            addNotificationRef.current && addNotificationRef.current(`Downloaded: ${data.title}`, "success");
+        };
+
+        const onDownloadFailed = (data) => {
+            //console.log("[Socket] download-failed", data);
+            removeActiveDownload(data.url);
+            setSnackRef.current && setSnackRef.current(`${data.title}`, "error");
+            addNotificationRef.current && addNotificationRef.current(`Download Failed: ${data.title}`, "error");
+        };
+
+        const onDownloadingPercentUpdate = (data) => {
+            //console.log("Downloading percent update", { url: data.url, percent: data.percentage });
+            const url = data.url || "unknown";
+            const percent = parseFloat(data.percentage);
+
+            if (isNaN(percent)) return;
+
+            if (percent >= 99) {
+                updateActiveDownloads(prev => ({ ...prev, [url]: 100 }));
+                toggleProgressCallBackRef.current && toggleProgressCallBackRef.current(true);
+            } else if (!disableProgressRef.current) {
+                updateActiveDownloads(prev => {
+                    if (prev[url] >= 100 && prev[url] !== 101) return prev;
+                    return { ...prev, [url]: percent };
+                });
+            }
+        };
+
+
+        const onListingStarted = (
+            //data
+        ) => {
+            //console.log("Listing started: ", data);
+            incrementListings();
+            toggleProgressCallBackRef.current && toggleProgressCallBackRef.current(false);
+        };
+
+        const onListingPlaylistComplete = (data) => {
+            //console.log("Listing playlist done: ", data);
+            decrementListings();
+            setSnackRef.current && setSnackRef.current(`${data.playlistTitle}`, "success");
+            const tag = "listing-playlist-complete-" + data.url + "-" + data.processedChunks + "-" + nowTag();
+            const current = playListUrlRef.current;
+
+            // Always re-fetch the playlist list to show final status
+            setReFetchPlaylist(tag);
+
+            if (current === "init") {
+                // Load the playlist if none is loaded
+                setPlayListUrl(data.url);
+                setPlayListIndex(data.seekPlaylistListTo);
+            } else if (current === data.url) {
+                // If viewing the completed playlist, refresh the sublist
+                setReFetchSubList(tag);
+            } else {
+                // Just update the index
+                setPlayListIndex(data.seekPlaylistListTo);
+            }
+
+            addNotificationRef.current && addNotificationRef.current(`Successfully imported playlist: ${data.playlistTitle}`, "success");
+        };
+
+        const onPlaylistSkipped = (data) => {
+            decrementListings();
+            setSnackRef.current && setSnackRef.current(`${data.message}`, "info");
+            addNotificationRef.current && addNotificationRef.current(`${data.message}`, "info");
+        };
+
+        const onListingPlaylistChunkComplete = (data) => {
+            //console.log("Listing chunk complete: ", data);
+            //console.log("Current playlist url (ref): ", playListUrlRef.current, " data url: ", data.url, " processed chunks: ", data.processedChunks);
+
+            const current = playListUrlRef.current;
+            const tag = "listing-playlist-chunk-complete-" + data.url + "-" + data.processedChunks + "-" + nowTag();
+
+            // Always re-fetch the playlist list to show updated status/counts
+            setReFetchPlaylist(tag);
+
+            // If the current url is init (i.e. No playlist is loaded) and the processed chunks is 1, then it is the first chunk so load it
+            if ((current === "init") && (data.processedChunks === 1)) {
+                //setIndeterminate(false);
+                setPlayListUrl(data.url);
+                setPlayListIndex(data.seekPlaylistListTo);
+            }
+            // If the current url is the same as the data url, it means we are viewing the playlist being processed
+            else if (current === data.url) {
+                // Re-fetch the sublist to show new videos
+                setReFetchSubList(tag);
+                setPlayListIndex(data.seekPlaylistListTo);
+            }
+        };
+
+        const onListingSingleItemComplete = (data) => {
+            decrementListings();
+            setReFetchSubList("listing-single-item-complete-" + data.url + "-" + nowTag());
+
+            const current = playListUrlRef.current;
+            if (current === "init" || current === "None") {
+                setPlayListUrl("None");
+                setSubListIndex(data.seekSubListTo);
+            }
+
+            if (data.alreadyExisted) {
+                setSnackRef.current && setSnackRef.current("Duplicate video encountered and navigated to", "info");
+                addNotificationRef.current && addNotificationRef.current(`Duplicate video encountered and navigated to ${data.title}`, "info");
+            } else {
+                addNotificationRef.current && addNotificationRef.current(`Successfully loaded video: ${data.title}`, "success");
+            }
+        };
+
+        const onListingError = (data) => {
+            decrementListings();
+            setSnackRef.current && setSnackRef.current(`${data.url}`, "error");
+            addNotificationRef.current && addNotificationRef.current(`Failed Listing: ${data.url}`, "error");
+        };
+
+        const onListingVideoSkippedBecauseDownloaded = (data) => {
+            decrementListings();
+            setSnackRef.current && setSnackRef.current(`${data.message}`, "info");
+            addNotificationRef.current && addNotificationRef.current(`${data.message}`, "info");
+        };
+
+        // Register listeners
+        socket.on("init", onInit);
+        socket.on("error", onError);
+        socket.on("token-expired", onTokenExpired);
+        socket.on("connection-error", onConnectionError);
+
+        socket.on("download-started", onDownloadStarted);
+        socket.on("download-done", onDownloadDone);
+        socket.on("download-failed", onDownloadFailed);
+        socket.on("downloading-percent-update", onDownloadingPercentUpdate);
+
+        socket.on("listing-started", onListingStarted);
+        socket.on("listing-playlist-complete", onListingPlaylistComplete);
+        socket.on("listing-playlist-chunk-complete", onListingPlaylistChunkComplete);
+        socket.on("listing-single-item-complete", onListingSingleItemComplete);
+        socket.on("listing-error", onListingError);
+        socket.on("listing-playlist-skipped-because-same-monitoring", onPlaylistSkipped);
+        socket.on("listing-video-skipped-because-downloaded", onListingVideoSkippedBecauseDownloaded);
+
+        // Cleanup on unmount or when socket changes
+        return () => {
+            try {
+                socket.off("init", onInit);
+                socket.off("error", onError);
+                socket.off("token-expired", onTokenExpired);
+                socket.off("connection-error", onConnectionError);
+
+                socket.off("download-started", onDownloadStarted);
+                socket.off("download-done", onDownloadDone);
+                socket.off("download-failed", onDownloadFailed);
+                socket.off("downloading-percent-update", onDownloadingPercentUpdate);
+
+                socket.off("listing-started", onListingStarted);
+                socket.off("listing-playlist-complete", onListingPlaylistComplete);
+                socket.off("listing-playlist-chunk-complete", onListingPlaylistChunkComplete);
+                socket.off("listing-single-item-complete", onListingSingleItemComplete);
+                socket.off("listing-error", onListingError);
+                socket.off("listing-playlist-skipped-because-same-monitoring", onPlaylistSkipped);
+                socket.off("listing-video-skipped-because-downloaded", onListingVideoSkippedBecauseDownloaded);
+            } catch (_e) {
+                // socket might already be closed; ignore
+                //console.warn("Error removing socket listeners", _e);
+            }
+        };
+    }, [socket]); // only recreate if socket reference changes
+*/
 
 async function apiRequest(endpoint: string, options: RequestInit = {}) {
   const url = `${BASE_URL}${endpoint}`;
@@ -312,7 +545,7 @@ Deno.test("Verify that there are 2 videos in Dup Test Playlist - POST /getsub", 
   assertEquals(json.rows[1].video_metadatum.saveDirectory, null);
 });
 
-// Done till above
+// Done till adding the Dup Test playlist
 // Next steps
 // 1. Download the first video but because both the videos in the Dup Test playlist are same downloading one downloads both videos.
 // Download Req: {"urlList":["https://www.youtube.com/watch?v=PexSJ31niEI"],"playListUrl":"https://www.youtube.com/playlist?list=PL4Oo6H2hGqj0YkYoOLFmrbhsVWfAjCLZw"}
@@ -329,93 +562,83 @@ Deno.test("Verify that there are 2 videos in Dup Test Playlist - POST /getsub", 
 // 5. Get a file content
 // Get File Req: GET http://localhost:8888/ytdiff/getfile?fileId=b1d4e25f-475f-47fe-bed8-2d68a277c134
 // Get File Res: The Raw File
-// 6. Refresh File
+// 6. Refresh File - Forgot How this works, I'll get back to this later
 // Refresh File Req:
 // Refresh File Res:
-// 7. Delete only the dowloaded file -> Refetch the sub list to see if the files truly got deleted
-// Delete File Req: {"playListUrl":"https://www.youtube.com/playlist?list=PL4Oo6H2hGqj0YkYoOLFmrbhsVWfAjCLZw","videoUrls":["https://www.youtube.com/watch?v=PexSJ31niEI"],"cleanUp":true,"deleteVideoMappings":false,"deleteVideosInDB":false}
-// Delete File Res: {"message":"Processed 1 video(s) from playlist Dup Test","deleted":["https://www.youtube.com/watch?v=PexSJ31niEI"],"failed":[],"cleanUp":true,"deleteVideoMappings":false,"deleteVideosInDB":false}
-// 8. Get the subList again after delete and assert that the downloaded files are deleted and
-// SubList Req: {"start":0,"stop":8,"sortDownloaded":false,"query":"","url":"https://www.youtube.com/playlist?list=PL4Oo6H2hGqj0YkYoOLFmrbhsVWfAjCLZw"}
-// SubList Res: {"count":2,"rows":[{"positionInPlaylist":1,"playlistUrl":"https://www.youtube.com/playlist?list=PL4Oo6H2hGqj0YkYoOLFmrbhsVWfAjCLZw","video_metadatum":{"title":"Run Immich through a docker container on Tailscale","videoId":"PexSJ31niEI","videoUrl":"https://www.youtube.com/watch?v=PexSJ31niEI","downloadStatus":false,"isAvailable":true,"fileName":null,"thumbNailFile":null,"onlineThumbnail":"https://i.ytimg.com/vi/PexSJ31niEI/sddefault.jpg?sqp=-oaymwEmCIAFEOAD8quKqQMa8AEB-AHSBoAC4AOKAgwIABABGFkgWShZMA8=&rs=AOn4CLAcuWHiDO7IaUGPtoIc2p9V4odxhg","subTitleFile":null,"descriptionFile":null,"isMetaDataSynced":true,"saveDirectory":null}},{"positionInPlaylist":2,"playlistUrl":"https://www.youtube.com/playlist?list=PL4Oo6H2hGqj0YkYoOLFmrbhsVWfAjCLZw","video_metadatum":{"title":"Run Immich through a docker container on Tailscale","videoId":"PexSJ31niEI","videoUrl":"https://www.youtube.com/watch?v=PexSJ31niEI","downloadStatus":false,"isAvailable":true,"fileName":null,"thumbNailFile":null,"onlineThumbnail":"https://i.ytimg.com/vi/PexSJ31niEI/sddefault.jpg?sqp=-oaymwEmCIAFEOAD8quKqQMa8AEB-AHSBoAC4AOKAgwIABABGFkgWShZMA8=&rs=AOn4CLAcuWHiDO7IaUGPtoIc2p9V4odxhg","subTitleFile":null,"descriptionFile":null,"isMetaDataSynced":true,"saveDirectory":null}}],"saveDirectory":"Dup Test"}
-// 9. Finally delete a single video from a playlist (since both videos are same they both get delted, will fix this later add as an issue for now)
-// Delete Vide Req: {"playListUrl":"https://www.youtube.com/playlist?list=PL4Oo6H2hGqj0YkYoOLFmrbhsVWfAjCLZw","videoUrls":["https://www.youtube.com/watch?v=PexSJ31niEI"],"cleanUp":false,"deleteVideoMappings":true,"deleteVideosInDB":false}
-// Delete Video Res: {"message":"Processed 1 video(s) from playlist Dup Test","deleted":["https://www.youtube.com/watch?v=PexSJ31niEI"],"failed":[],"cleanUp":false,"deleteVideoMappings":true,"deleteVideosInDB":false}
-// 10. Change the monitoring type of a playlist
+// 7. Change the monitoring type of a playlist
 // Watch Req: {"url":"https://www.youtube.com/playlist?list=PL4Oo6H2hGqj0YkYoOLFmrbhsVWfAjCLZw","watch":"Full"}
 // Watch Res: {"status":"success","message":"Monitoring type updated successfully"}
-// 11. Get the playlists again to see the change in the monitting type
+// 8. Get the playlists again to see the change in the monitting type
 // Get Play Req: {"start":0,"stop":10,"sort":"1","order":"1","query":""}
 // Get Play Res: {"count":1,"rows":[{"playlistUrl":"https://www.youtube.com/playlist?list=PL4Oo6H2hGqj0YkYoOLFmrbhsVWfAjCLZw","title":"Dup Test","sortOrder":0,"monitoringType":"Full","saveDirectory":"Dup Test","createdAt":"2026-04-18T12:34:21.994Z","updatedAt":"2026-04-18T12:34:21.994Z","lastUpdatedByScheduler":"2026-04-18T12:34:21.990Z"}]}
-// 12. Delete the playlist
-// Delete Play Req: {"playListUrl":"https://www.youtube.com/playlist?list=PL4Oo6H2hGqj0YkYoOLFmrbhsVWfAjCLZw","deleteAllVideosInPlaylist":false,"deletePlaylist":true,"cleanUp":false}
-// Delete Play Res: {"status":"success","message":"Deleted playlist Dup Test","cleanUp":false,"deletePlaylist":true,"deleteAllVideosInPlaylist":false}
-// =================This can be optomized further===========================
-// 13. Add Dup Test 2 Playlist
-// List Req: {"urlList":["https://www.youtube.com/playlist?list=PL4Oo6H2hGqj2fQCpmX2zfytLqD2Qv7yZY"],"chunkSize":9,"monitoringType":"N/A","sleep":true}
-// List Res: {"status":"success","message":"Listing initiated","items":[{"url":"https://www.youtube.com/playlist?list=PL4Oo6H2hGqj2fQCpmX2zfytLqD2Qv7yZY","type":"undetermined","currentMonitoringType":"N/A","reason":"URL not found in database"}]}
-// 14. Get Play for the new playlist (there should be only one item this one at this point)
-// Get Play Req: {"start":0,"stop":10,"sort":"1","order":"1","query":""}
-// Get Play Res: {"count":1,"rows":[{"playlistUrl":"https://www.youtube.com/playlist?list=PL4Oo6H2hGqj2fQCpmX2zfytLqD2Qv7yZY","title":"Dup Test 2","sortOrder":0,"monitoringType":"N/A","saveDirectory":"Dup Test 2","createdAt":"2026-04-18T13:29:04.184Z","updatedAt":"2026-04-18T13:29:04.184Z","lastUpdatedByScheduler":"2026-04-18T13:29:04.180Z"}]}
-// 15. Get the sub list for this playlist (there should be only one item as there is only one item in this playlist)
-// Req: {"start":0,"stop":8,"sortDownloaded":false,"query":"","url":"https://www.youtube.com/playlist?list=PL4Oo6H2hGqj2fQCpmX2zfytLqD2Qv7yZY"}
-// Res: {"count":1,"rows":[{"positionInPlaylist":1,"playlistUrl":"https://www.youtube.com/playlist?list=PL4Oo6H2hGqj2fQCpmX2zfytLqD2Qv7yZY","video_metadatum":{"title":"Run Immich through a docker container on Tailscale","videoId":"PexSJ31niEI","videoUrl":"https://www.youtube.com/watch?v=PexSJ31niEI","downloadStatus":false,"isAvailable":true,"fileName":null,"thumbNailFile":null,"onlineThumbnail":"https://i.ytimg.com/vi/PexSJ31niEI/sddefault.jpg?sqp=-oaymwEmCIAFEOAD8quKqQMa8AEB-AHSBoAC4AOKAgwIABABGFkgWShZMA8=&rs=AOn4CLAcuWHiDO7IaUGPtoIc2p9V4odxhg","subTitleFile":null,"descriptionFile":null,"isMetaDataSynced":false,"saveDirectory":null}}],"saveDirectory":"Dup Test 2"}
-// 16. Unlink the videos in this playlist (del play)
-// Del play Req: {"playListUrl":"https://www.youtube.com/playlist?list=PL4Oo6H2hGqj2fQCpmX2zfytLqD2Qv7yZY","deleteAllVideosInPlaylist":true,"deletePlaylist":false,"cleanUp":false}
-// Del play Res: {"status":"success","message":"Removed all video references from playlist Dup Test 2","cleanUp":false,"deletePlaylist":false,"deleteAllVideosInPlaylist":true}
-// 17. Add the Unlisted playlist
-// Req: {"urlList":["https://www.youtube.com/playlist?list=PL4Oo6H2hGqj0iN_y58yjymtLFKC9qULfs"],"chunkSize":9,"monitoringType":"N/A","sleep":true}
-// Res: {"status":"success","message":"Listing initiated","items":[{"url":"https://www.youtube.com/playlist?list=PL4Oo6H2hGqj0iN_y58yjymtLFKC9qULfs","type":"undetermined","currentMonitoringType":"N/A","reason":"URL not found in database"}]}
-// 18. Get Playlists (there should be two items now)
-// Req: {"start":0,"stop":10,"sort":"1","order":"1","query":""}
-// Res: {"count":2,"rows":[{"playlistUrl":"https://www.youtube.com/playlist?list=PL4Oo6H2hGqj2fQCpmX2zfytLqD2Qv7yZY","title":"Dup Test 2","sortOrder":0,"monitoringType":"N/A","saveDirectory":"Dup Test 2","createdAt":"2026-04-18T13:29:04.184Z","updatedAt":"2026-04-18T13:29:04.184Z","lastUpdatedByScheduler":"2026-04-18T13:29:04.180Z"},{"playlistUrl":"https://www.youtube.com/playlist?list=PL4Oo6H2hGqj0iN_y58yjymtLFKC9qULfs","title":"E7 Shorts","sortOrder":1,"monitoringType":"N/A","saveDirectory":"E7 Shorts","createdAt":"2026-04-18T13:34:46.517Z","updatedAt":"2026-04-18T13:34:46.517Z","lastUpdatedByScheduler":"2026-04-18T13:34:46.515Z"}]}
-// 19. Get sub for the unlisted playlist
-// Req: {"start":0,"stop":8,"sortDownloaded":false,"query":"","url":"https://www.youtube.com/playlist?list=PL4Oo6H2hGqj0iN_y58yjymtLFKC9qULfs"}
-// Res: {"count":2,"rows":[{"positionInPlaylist":1,"playlistUrl":"https://www.youtube.com/playlist?list=PL4Oo6H2hGqj0iN_y58yjymtLFKC9qULfs","video_metadatum":{"title":"Good Pets Epic Seven","videoId":"kr2lsFN_aM8","videoUrl":"https://www.youtube.com/watch?v=kr2lsFN_aM8","downloadStatus":false,"isAvailable":true,"fileName":null,"thumbNailFile":null,"onlineThumbnail":"https://i.ytimg.com/vi/kr2lsFN_aM8/maxresdefault.jpg","subTitleFile":null,"descriptionFile":null,"isMetaDataSynced":false,"saveDirectory":null}},{"positionInPlaylist":2,"playlistUrl":"https://www.youtube.com/playlist?list=PL4Oo6H2hGqj0iN_y58yjymtLFKC9qULfs","video_metadatum":{"title":"Screenrecording 20201222 143136 com stove epic7 google","videoId":"h0OdOdLtuQM","videoUrl":"https://www.youtube.com/watch?v=h0OdOdLtuQM","downloadStatus":false,"isAvailable":true,"fileName":null,"thumbNailFile":null,"onlineThumbnail":"https://i.ytimg.com/vi/h0OdOdLtuQM/maxresdefault.jpg","subTitleFile":null,"descriptionFile":null,"isMetaDataSynced":false,"saveDirectory":null}}],"saveDirectory":"E7 Shorts"}
-// 20. Delete everthing for the unlisted playlist
-// Req: {"playListUrl":"https://www.youtube.com/playlist?list=PL4Oo6H2hGqj0iN_y58yjymtLFKC9qULfs","deleteAllVideosInPlaylist":true,"deletePlaylist":true,"cleanUp":true}
-// Res: {"status":"success","message":"Removed all video references from playlist E7 Shorts and deleted playlist and cleaned up playlist directory","cleanUp":true,"deletePlaylist":true,"deleteAllVideosInPlaylist":true}
-// 21. Get Playlists again (Now there should be one playlist, the dup test 2 playlist)
-// Req: {"start":0,"stop":10,"sort":"1","order":"1","query":""}
-// Res: {"count":1,"rows":[{"playlistUrl":"https://www.youtube.com/playlist?list=PL4Oo6H2hGqj2fQCpmX2zfytLqD2Qv7yZY","title":"Dup Test 2","sortOrder":0,"monitoringType":"N/A","saveDirectory":"Dup Test 2","createdAt":"2026-04-18T13:29:04.184Z","updatedAt":"2026-04-18T13:29:04.184Z","lastUpdatedByScheduler":"2026-04-18T13:29:04.180Z"}]}
-// 22. Delete the dup test 2 playlist
-// Req: {"playListUrl":"https://www.youtube.com/playlist?list=PL4Oo6H2hGqj2fQCpmX2zfytLqD2Qv7yZY","deleteAllVideosInPlaylist":true,"deletePlaylist":true,"cleanUp":true}
-// Res: {"status":"success","message":"Removed all video references from playlist Dup Test 2 and deleted playlist and cleaned up playlist directory","cleanUp":true,"deletePlaylist":true,"deleteAllVideosInPlaylist":true}
-// 23. Get Playlists again (there should be no playlists now)
-// Req: {"start":0,"stop":10,"sort":"1","order":"1","query":""}
-// Res: {"count":0,"rows":[]}
-// ++++++++++++++++++++++++++
-// 13. Get Playlists again (there should be no playlists now)
-// Req: {"start":0,"stop":10,"sort":"1","order":"1","query":""}
-// Res: {"count":0,"rows":[]}
-// 14. Add the Unlisted playlist
-// Req: {"urlList":["https://www.youtube.com/playlist?list=PL4Oo6H2hGqj0iN_y58yjymtLFKC9qULfs"],"chunkSize":9,"monitoringType":"N/A","sleep":true}
-// Res: {"status":"success","message":"Listing initiated","items":[{"url":"https://www.youtube.com/playlist?list=PL4Oo6H2hGqj0iN_y58yjymtLFKC9qULfs","type":"undetermined","currentMonitoringType":"N/A","reason":"URL not found in database"}]}
-// 15. Get Playlists (there should be one items now)
-// Req: {"start":0,"stop":10,"sort":"1","order":"1","query":""}
-// Res: {"count":1,"rows":[{"playlistUrl":"https://www.youtube.com/playlist?list=PL4Oo6H2hGqj0iN_y58yjymtLFKC9qULfs","title":"E7 Shorts","sortOrder":0,"monitoringType":"N/A","saveDirectory":"E7 Shorts","createdAt":"2026-04-18T13:44:23.158Z","updatedAt":"2026-04-18T13:44:23.158Z","lastUpdatedByScheduler":"2026-04-18T13:44:23.155Z"}]}
-// 16. Get sub for the unlisted playlist (there should be 2 items)
-// Req: {"start":0,"stop":8,"sortDownloaded":false,"query":"","url":"https://www.youtube.com/playlist?list=PL4Oo6H2hGqj0iN_y58yjymtLFKC9qULfs"}
-// Res: {"count":2,"rows":[{"positionInPlaylist":1,"playlistUrl":"https://www.youtube.com/playlist?list=PL4Oo6H2hGqj0iN_y58yjymtLFKC9qULfs","video_metadatum":{"title":"Good Pets Epic Seven","videoId":"kr2lsFN_aM8","videoUrl":"https://www.youtube.com/watch?v=kr2lsFN_aM8","downloadStatus":false,"isAvailable":true,"fileName":null,"thumbNailFile":null,"onlineThumbnail":"https://i.ytimg.com/vi/kr2lsFN_aM8/maxresdefault.jpg","subTitleFile":null,"descriptionFile":null,"isMetaDataSynced":false,"saveDirectory":null}},{"positionInPlaylist":2,"playlistUrl":"https://www.youtube.com/playlist?list=PL4Oo6H2hGqj0iN_y58yjymtLFKC9qULfs","video_metadatum":{"title":"Screenrecording 20201222 143136 com stove epic7 google","videoId":"h0OdOdLtuQM","videoUrl":"https://www.youtube.com/watch?v=h0OdOdLtuQM","downloadStatus":false,"isAvailable":true,"fileName":null,"thumbNailFile":null,"onlineThumbnail":"https://i.ytimg.com/vi/h0OdOdLtuQM/maxresdefault.jpg","subTitleFile":null,"descriptionFile":null,"isMetaDataSynced":false,"saveDirectory":null}}],"saveDirectory":"E7 Shorts"}
-// 17. Unlink the first video in the sub list
-// Req: {"playListUrl":"https://www.youtube.com/playlist?list=PL4Oo6H2hGqj0iN_y58yjymtLFKC9qULfs","videoUrls":["https://www.youtube.com/watch?v=kr2lsFN_aM8"],"cleanUp":false,"deleteVideoMappings":true,"deleteVideosInDB":false}
-// Res: {"message":"Processed 1 video(s) from playlist E7 Shorts","deleted":["https://www.youtube.com/watch?v=kr2lsFN_aM8"],"failed":[],"cleanUp":false,"deleteVideoMappings":true,"deleteVideosInDB":false}
-// 18. Get sub for the unlisted playlist (there should be 1 item)
-// Req: {"start":0,"stop":8,"sortDownloaded":false,"query":"","url":"https://www.youtube.com/playlist?list=PL4Oo6H2hGqj0iN_y58yjymtLFKC9qULfs"}
-// Res: {"count":1,"rows":[{"positionInPlaylist":2,"playlistUrl":"https://www.youtube.com/playlist?list=PL4Oo6H2hGqj0iN_y58yjymtLFKC9qULfs","video_metadatum":{"title":"Screenrecording 20201222 143136 com stove epic7 google","videoId":"h0OdOdLtuQM","videoUrl":"https://www.youtube.com/watch?v=h0OdOdLtuQM","downloadStatus":false,"isAvailable":true,"fileName":null,"thumbNailFile":null,"onlineThumbnail":"https://i.ytimg.com/vi/h0OdOdLtuQM/maxresdefault.jpg","subTitleFile":null,"descriptionFile":null,"isMetaDataSynced":false,"saveDirectory":null}}],"saveDirectory":"E7 Shorts"}
-// 19. Delete the last video in the sub list
-// Req: {"playListUrl":"https://www.youtube.com/playlist?list=PL4Oo6H2hGqj0iN_y58yjymtLFKC9qULfs","videoUrls":["https://www.youtube.com/watch?v=h0OdOdLtuQM"],"cleanUp":true,"deleteVideoMappings":true,"deleteVideosInDB":true}
-// Res: {"message":"Processed 1 video(s) from playlist E7 Shorts","deleted":["https://www.youtube.com/watch?v=h0OdOdLtuQM"],"failed":[],"cleanUp":true,"deleteVideoMappings":true,"deleteVideosInDB":true}
-// 20. Get sub for the unlisted playlist (there should be 0 items)
-// Req: {"start":0,"stop":8,"sortDownloaded":false,"query":"","url":"https://www.youtube.com/playlist?list=PL4Oo6H2hGqj0iN_y58yjymtLFKC9qULfs"}
-// Res: {"count":0,"rows":[]}
-// We are not deleting E7 Shorts yet, it will be used for full clean up later
-// 21. Add Dup test 2 playlist
+// 9. Add the "Dup Test 2" playlist
 // Req: {"urlList":["https://www.youtube.com/playlist?list=PL4Oo6H2hGqj2fQCpmX2zfytLqD2Qv7yZY"],"chunkSize":9,"monitoringType":"N/A","sleep":true}
 // Res: {"status":"success","message":"Listing initiated","items":[{"url":"https://www.youtube.com/playlist?list=PL4Oo6H2hGqj2fQCpmX2zfytLqD2Qv7yZY","type":"undetermined","currentMonitoringType":"N/A","reason":"URL not found in database"}]}
-// 22. Get playlists (there should be two playlists now)
+// 10. Get playlists again to see the new playlist "Dup Test 2" in the list
 // Req: {"start":0,"stop":10,"sort":"1","order":"1","query":""}
-// Res: {"count":2,"rows":[{"playlistUrl":"https://www.youtube.com/playlist?list=PL4Oo6H2hGqj0iN_y58yjymtLFKC9qULfs","title":"E7 Shorts","sortOrder":0,"monitoringType":"N/A","saveDirectory":"E7 Shorts","createdAt":"2026-04-18T13:44:23.158Z","updatedAt":"2026-04-18T13:44:23.158Z","lastUpdatedByScheduler":"2026-04-18T13:44:23.155Z"},{"playlistUrl":"https://www.youtube.com/playlist?list=PL4Oo6H2hGqj2fQCpmX2zfytLqD2Qv7yZY","title":"Dup Test 2","sortOrder":1,"monitoringType":"N/A","saveDirectory":"Dup Test 2","createdAt":"2026-04-18T13:52:27.801Z","updatedAt":"2026-04-18T13:52:27.801Z","lastUpdatedByScheduler":"2026-04-18T13:52:27.798Z"}]}
-// 23. Get the sub list for "dup test 2" playlist (it should have only one item)
+// Res: {"count":2,"rows":[{"playlistUrl":"https://www.youtube.com/playlist?list=PL4Oo6H2hGqj0YkYoOLFmrbhsVWfAjCLZw","title":"Dup Test","sortOrder":0,"monitoringType":"N/A","saveDirectory":"Dup Test","createdAt":"2026-04-18T18:12:12.091Z","updatedAt":"2026-04-18T18:12:12.091Z","lastUpdatedByScheduler":"2026-04-18T18:12:12.086Z"},{"playlistUrl":"https://www.youtube.com/playlist?list=PL4Oo6H2hGqj2fQCpmX2zfytLqD2Qv7yZY","title":"Dup Test 2","sortOrder":1,"monitoringType":"N/A","saveDirectory":"Dup Test 2","createdAt":"2026-04-18T18:24:44.669Z","updatedAt":"2026-04-18T18:24:44.669Z","lastUpdatedByScheduler":"2026-04-18T18:24:44.667Z"}]}
+// 11. Get the sublist for the "Dup Test 2" playlist - Assert that the files here are downloaded this means that many to one connection is working
 // Req: {"start":0,"stop":8,"sortDownloaded":false,"query":"","url":"https://www.youtube.com/playlist?list=PL4Oo6H2hGqj2fQCpmX2zfytLqD2Qv7yZY"}
-// Res: {"count":1,"rows":[{"positionInPlaylist":1,"playlistUrl":"https://www.youtube.com/playlist?list=PL4Oo6H2hGqj2fQCpmX2zfytLqD2Qv7yZY","video_metadatum":{"title":"Run Immich through a docker container on Tailscale","videoId":"PexSJ31niEI","videoUrl":"https://www.youtube.com/watch?v=PexSJ31niEI","downloadStatus":false,"isAvailable":true,"fileName":null,"thumbNailFile":null,"onlineThumbnail":"https://i.ytimg.com/vi/PexSJ31niEI/sddefault.jpg?sqp=-oaymwEmCIAFEOAD8quKqQMa8AEB-AHSBoAC4AOKAgwIABABGFkgWShZMA8=&rs=AOn4CLAcuWHiDO7IaUGPtoIc2p9V4odxhg","subTitleFile":null,"descriptionFile":null,"isMetaDataSynced":false,"saveDirectory":null}}],"saveDirectory":"Dup Test 2"}
+// Res: {"count":1,"rows":[{"positionInPlaylist":1,"playlistUrl":"https://www.youtube.com/playlist?list=PL4Oo6H2hGqj2fQCpmX2zfytLqD2Qv7yZY","video_metadatum":{"title":"Run Immich through a docker container on Tailscale","videoId":"PexSJ31niEI","videoUrl":"https://www.youtube.com/watch?v=PexSJ31niEI","downloadStatus":true,"isAvailable":true,"fileName":"PexSJ31niEI.mkv","thumbNailFile":"PexSJ31niEI.webp","onlineThumbnail":"https://i.ytimg.com/vi/PexSJ31niEI/sddefault.jpg?sqp=-oaymwEmCIAFEOAD8quKqQMa8AEB-AHSBoAC4AOKAgwIABABGFkgWShZMA8=&rs=AOn4CLAcuWHiDO7IaUGPtoIc2p9V4odxhg","subTitleFile":null,"descriptionFile":"PexSJ31niEI.description","isMetaDataSynced":true,"saveDirectory":"Dup Test"}}],"saveDirectory":"Dup Test 2"}
+// 12. Delete the downloaded files for the only item in the Dup Test 2 playlist (This will only delete the files the video and the mappings stay as it is)
+// Req: {"playListUrl":"https://www.youtube.com/playlist?list=PL4Oo6H2hGqj2fQCpmX2zfytLqD2Qv7yZY","videoUrls":["https://www.youtube.com/watch?v=PexSJ31niEI"],"cleanUp":true,"deleteVideoMappings":false,"deleteVideosInDB":false}
+// Res: {"message":"Processed 1 video(s) from playlist Dup Test 2","deleted":["https://www.youtube.com/watch?v=PexSJ31niEI"],"failed":[],"cleanUp":true,"deleteVideoMappings":false,"deleteVideosInDB":false}
+// 13. Get the sublist for the "Dup Test 2" playlist again to verify that the files are deleted - Assert that the files are deleted this means that only the files were deleted and the video and the mappings stay as it is
+// Req: {"start":0,"stop":8,"sortDownloaded":false,"query":"","url":"https://www.youtube.com/playlist?list=PL4Oo6H2hGqj2fQCpmX2zfytLqD2Qv7yZY"}
+// Res: {"count":1,"rows":[{"positionInPlaylist":1,"playlistUrl":"https://www.youtube.com/playlist?list=PL4Oo6H2hGqj2fQCpmX2zfytLqD2Qv7yZY","video_metadatum":{"title":"Run Immich through a docker container on Tailscale","videoId":"PexSJ31niEI","videoUrl":"https://www.youtube.com/watch?v=PexSJ31niEI","downloadStatus":false,"isAvailable":true,"fileName":null,"thumbNailFile":null,"onlineThumbnail":"https://i.ytimg.com/vi/PexSJ31niEI/sddefault.jpg?sqp=-oaymwEmCIAFEOAD8quKqQMa8AEB-AHSBoAC4AOKAgwIABABGFkgWShZMA8=&rs=AOn4CLAcuWHiDO7IaUGPtoIc2p9V4odxhg","subTitleFile":null,"descriptionFile":null,"isMetaDataSynced":true,"saveDirectory":null}}],"saveDirectory":"Dup Test 2"}
+// 14. Get the sublist for "Dup Test" playlist - the videos here should also be undownloaded - proving that many to one connection is working
+// Req: {"start":0,"stop":8,"sortDownloaded":false,"query":"","url":"https://www.youtube.com/playlist?list=PL4Oo6H2hGqj0YkYoOLFmrbhsVWfAjCLZw"}
+// Res: {"count":2,"rows":[{"positionInPlaylist":1,"playlistUrl":"https://www.youtube.com/playlist?list=PL4Oo6H2hGqj0YkYoOLFmrbhsVWfAjCLZw","video_metadatum":{"title":"Run Immich through a docker container on Tailscale","videoId":"PexSJ31niEI","videoUrl":"https://www.youtube.com/watch?v=PexSJ31niEI","downloadStatus":false,"isAvailable":true,"fileName":null,"thumbNailFile":null,"onlineThumbnail":"https://i.ytimg.com/vi/PexSJ31niEI/sddefault.jpg?sqp=-oaymwEmCIAFEOAD8quKqQMa8AEB-AHSBoAC4AOKAgwIABABGFkgWShZMA8=&rs=AOn4CLAcuWHiDO7IaUGPtoIc2p9V4odxhg","subTitleFile":null,"descriptionFile":null,"isMetaDataSynced":true,"saveDirectory":null}},{"positionInPlaylist":2,"playlistUrl":"https://www.youtube.com/playlist?list=PL4Oo6H2hGqj0YkYoOLFmrbhsVWfAjCLZw","video_metadatum":{"title":"Run Immich through a docker container on Tailscale","videoId":"PexSJ31niEI","videoUrl":"https://www.youtube.com/watch?v=PexSJ31niEI","downloadStatus":false,"isAvailable":true,"fileName":null,"thumbNailFile":null,"onlineThumbnail":"https://i.ytimg.com/vi/PexSJ31niEI/sddefault.jpg?sqp=-oaymwEmCIAFEOAD8quKqQMa8AEB-AHSBoAC4AOKAgwIABABGFkgWShZMA8=&rs=AOn4CLAcuWHiDO7IaUGPtoIc2p9V4odxhg","subTitleFile":null,"descriptionFile":null,"isMetaDataSynced":true,"saveDirectory":null}}],"saveDirectory":"Dup Test"}
+// 15. Add the unlisted playlist "E7 Shorts"
+// Req: {"urlList":["https://www.youtube.com/playlist?list=PL4Oo6H2hGqj0iN_y58yjymtLFKC9qULfs"],"chunkSize":9,"monitoringType":"N/A","sleep":true}
+// Res: {"status":"success","message":"Listing initiated","items":[{"url":"https://www.youtube.com/playlist?list=PL4Oo6H2hGqj0iN_y58yjymtLFKC9qULfs","type":"undetermined","currentMonitoringType":"N/A","reason":"URL not found in database"}]}
+// 16. Get playlists again to see the new playlist "E7 Shorts" in the list
+// Req: {"start":0,"stop":10,"sort":"1","order":"1","query":""}
+// Res: {"count":3,"rows":[{"playlistUrl":"https://www.youtube.com/playlist?list=PL4Oo6H2hGqj0YkYoOLFmrbhsVWfAjCLZw","title":"Dup Test","sortOrder":0,"monitoringType":"N/A","saveDirectory":"Dup Test","createdAt":"2026-04-18T18:12:12.091Z","updatedAt":"2026-04-18T18:12:12.091Z","lastUpdatedByScheduler":"2026-04-18T18:12:12.086Z"},{"playlistUrl":"https://www.youtube.com/playlist?list=PL4Oo6H2hGqj2fQCpmX2zfytLqD2Qv7yZY","title":"Dup Test 2","sortOrder":1,"monitoringType":"N/A","saveDirectory":"Dup Test 2","createdAt":"2026-04-18T18:24:44.669Z","updatedAt":"2026-04-18T18:24:44.669Z","lastUpdatedByScheduler":"2026-04-18T18:24:44.667Z"},{"playlistUrl":"https://www.youtube.com/playlist?list=PL4Oo6H2hGqj0iN_y58yjymtLFKC9qULfs","title":"E7 Shorts","sortOrder":2,"monitoringType":"N/A","saveDirectory":"E7 Shorts","createdAt":"2026-04-18T19:04:44.846Z","updatedAt":"2026-04-18T19:04:44.846Z","lastUpdatedByScheduler":"2026-04-18T19:04:44.844Z"}]}
+// 17. Get the sublist for "E7 Shorts" playlist - there should be 2 items
+// Req: {"start":0,"stop":8,"sortDownloaded":false,"query":"","url":"https://www.youtube.com/playlist?list=PL4Oo6H2hGqj0iN_y58yjymtLFKC9qULfs"}
+// Res: {"count":2,"rows":[{"positionInPlaylist":1,"playlistUrl":"https://www.youtube.com/playlist?list=PL4Oo6H2hGqj0iN_y58yjymtLFKC9qULfs","video_metadatum":{"title":"Good Pets Epic Seven","videoId":"kr2lsFN_aM8","videoUrl":"https://www.youtube.com/watch?v=kr2lsFN_aM8","downloadStatus":false,"isAvailable":true,"fileName":null,"thumbNailFile":null,"onlineThumbnail":"https://i.ytimg.com/vi/kr2lsFN_aM8/maxresdefault.jpg","subTitleFile":null,"descriptionFile":null,"isMetaDataSynced":false,"saveDirectory":null}},{"positionInPlaylist":2,"playlistUrl":"https://www.youtube.com/playlist?list=PL4Oo6H2hGqj0iN_y58yjymtLFKC9qULfs","video_metadatum":{"title":"Screenrecording 20201222 143136 com stove epic7 google","videoId":"h0OdOdLtuQM","videoUrl":"https://www.youtube.com/watch?v=h0OdOdLtuQM","downloadStatus":false,"isAvailable":true,"fileName":null,"thumbNailFile":null,"onlineThumbnail":"https://i.ytimg.com/vi/h0OdOdLtuQM/maxresdefault.jpg","subTitleFile":null,"descriptionFile":null,"isMetaDataSynced":false,"saveDirectory":null}}],"saveDirectory":"E7 Shorts"}
+// 18. Delete the first item in the "E7 Shorts" playlist with delete everthing mode
+// Req: {"playListUrl":"https://www.youtube.com/playlist?list=PL4Oo6H2hGqj0iN_y58yjymtLFKC9qULfs","videoUrls":["https://www.youtube.com/watch?v=kr2lsFN_aM8"],"cleanUp":true,"deleteVideoMappings":true,"deleteVideosInDB":true}
+// Res: {"message":"Processed 1 video(s) from playlist E7 Shorts","deleted":["https://www.youtube.com/watch?v=kr2lsFN_aM8"],"failed":[],"cleanUp":true,"deleteVideoMappings":true,"deleteVideosInDB":true}
+// 19. Get the sublist again to see that there is only one item
+// Req: {"start":0,"stop":8,"sortDownloaded":false,"query":"","url":"https://www.youtube.com/playlist?list=PL4Oo6H2hGqj0iN_y58yjymtLFKC9qULfs"}
+// Res: {"count":1,"rows":[{"positionInPlaylist":2,"playlistUrl":"https://www.youtube.com/playlist?list=PL4Oo6H2hGqj0iN_y58yjymtLFKC9qULfs","video_metadatum":{"title":"Screenrecording 20201222 143136 com stove epic7 google","videoId":"h0OdOdLtuQM","videoUrl":"https://www.youtube.com/watch?v=h0OdOdLtuQM","downloadStatus":false,"isAvailable":true,"fileName":null,"thumbNailFile":null,"onlineThumbnail":"https://i.ytimg.com/vi/h0OdOdLtuQM/maxresdefault.jpg","subTitleFile":null,"descriptionFile":null,"isMetaDataSynced":false,"saveDirectory":null}}],"saveDirectory":"E7 Shorts"}
+// 20. Delete the first item in the "E7 Shorts" playlist with unlink mode
+// Res: {"playListUrl":"https://www.youtube.com/playlist?list=PL4Oo6H2hGqj0iN_y58yjymtLFKC9qULfs","videoUrls":["https://www.youtube.com/watch?v=h0OdOdLtuQM"],"cleanUp":false,"deleteVideoMappings":true,"deleteVideosInDB":false}
+// Res: {"message":"Processed 1 video(s) from playlist E7 Shorts","deleted":["https://www.youtube.com/watch?v=h0OdOdLtuQM"],"failed":[],"cleanUp":false,"deleteVideoMappings":true,"deleteVideosInDB":false}
+// 21. Get the sublist again to see that there is no item left in the playlist
+// Req: {"start":0,"stop":8,"sortDownloaded":false,"query":"","url":"https://www.youtube.com/playlist?list=PL4Oo6H2hGqj0iN_y58yjymtLFKC9qULfs"}
+// Res: {"count":0,"rows":[],"saveDirectory":"E7 Shorts"}
+// 22. Delete only the playlist "E7 Shorts"
+// Req: {"playListUrl":"https://www.youtube.com/playlist?list=PL4Oo6H2hGqj0iN_y58yjymtLFKC9qULfs","deleteAllVideosInPlaylist":false,"deletePlaylist":true,"cleanUp":false}
+// Res: {"status":"success","message":"Deleted playlist E7 Shorts","cleanUp":false,"deletePlaylist":true,"deleteAllVideosInPlaylist":false}
+// 23. Get the playlists again to see that there is only two playlists left
+// Req: {"start":0,"stop":10,"sort":"1","order":"1","query":""}
+// Res: {"count":2,"rows":[{"playlistUrl":"https://www.youtube.com/playlist?list=PL4Oo6H2hGqj0YkYoOLFmrbhsVWfAjCLZw","title":"Dup Test","sortOrder":0,"monitoringType":"N/A","saveDirectory":"Dup Test","createdAt":"2026-04-18T18:12:12.091Z","updatedAt":"2026-04-18T18:12:12.091Z","lastUpdatedByScheduler":"2026-04-18T18:12:12.086Z"},{"playlistUrl":"https://www.youtube.com/playlist?list=PL4Oo6H2hGqj2fQCpmX2zfytLqD2Qv7yZY","title":"Dup Test 2","sortOrder":1,"monitoringType":"N/A","saveDirectory":"Dup Test 2","createdAt":"2026-04-18T18:24:44.669Z","updatedAt":"2026-04-18T18:24:44.669Z","lastUpdatedByScheduler":"2026-04-18T18:24:44.667Z"}]}
+// 24. Unlink the videos in "Dup Test 2"
+// Req: {"playListUrl":"https://www.youtube.com/playlist?list=PL4Oo6H2hGqj2fQCpmX2zfytLqD2Qv7yZY","deleteAllVideosInPlaylist":true,"deletePlaylist":false,"cleanUp":false}
+// Res: {"status":"success","message":"Removed all video references from playlist Dup Test 2","cleanUp":false,"deletePlaylist":false,"deleteAllVideosInPlaylist":true}
+// 25. Get the sublist for "Dup Test 2" to see that there is no item left in the playlist
+// Req: {"start":0,"stop":8,"sortDownloaded":false,"query":"","url":"https://www.youtube.com/playlist?list=PL4Oo6H2hGqj2fQCpmX2zfytLqD2Qv7yZY"}
+// Res: {"count":0,"rows":[],"saveDirectory":"Dup Test 2"}
+// 26. Delete only the playlist "Dup Test 2"
+// Req: {"playListUrl":"https://www.youtube.com/playlist?list=PL4Oo6H2hGqj2fQCpmX2zfytLqD2Qv7yZY","deleteAllVideosInPlaylist":false,"deletePlaylist":true,"cleanUp":false}
+// Res: {"status":"success","message":"Deleted playlist Dup Test 2","cleanUp":false,"deletePlaylist":true,"deleteAllVideosInPlaylist":false}
+// 27. Get the playlists again to see that there is only one playlist left
+// Req: {"start":0,"stop":10,"sort":"1","order":"1","query":""}
+// Res: {"count":1,"rows":[{"playlistUrl":"https://www.youtube.com/playlist?list=PL4Oo6H2hGqj0YkYoOLFmrbhsVWfAjCLZw","title":"Dup Test","sortOrder":0,"monitoringType":"N/A","saveDirectory":"Dup Test","createdAt":"2026-04-18T18:12:12.091Z","updatedAt":"2026-04-18T18:12:12.091Z","lastUpdatedByScheduler":"2026-04-18T18:12:12.086Z"}]}
+// Note: Deleting a video from the DB directly is not possible, all of the delete operations just delete the associations of videos in the playlists not the videos themselves, a background process is responsible for deleting the actual videos from the db
+//       If the video is not downloaded then it gets pruned if it is then it gets moved to the end of the "None" playlist
+// 28. Download the only video in "Dup Test" again
+// Req: {"urlList":["https://www.youtube.com/watch?v=PexSJ31niEI"],"playListUrl":"https://www.youtube.com/playlist?list=PL4Oo6H2hGqj0YkYoOLFmrbhsVWfAjCLZw"}
+// Res: {"status":"success","message":"Downloads initiated","items":[{"url":"https://www.youtube.com/watch?v=PexSJ31niEI","title":"Run Immich through a docker container on Tailscale","saveDirectory":"Dup Test","videoId":"PexSJ31niEI"}]}
+// 29. Get the sublist again to see that the video is downloaded
+// Req: {"start":0,"stop":8,"sortDownloaded":false,"query":"","url":"https://www.youtube.com/playlist?list=PL4Oo6H2hGqj0YkYoOLFmrbhsVWfAjCLZw"}
+// Res: {"count":2,"rows":[{"positionInPlaylist":1,"playlistUrl":"https://www.youtube.com/playlist?list=PL4Oo6H2hGqj0YkYoOLFmrbhsVWfAjCLZw","video_metadatum":{"title":"Run Immich through a docker container on Tailscale","videoId":"PexSJ31niEI","videoUrl":"https://www.youtube.com/watch?v=PexSJ31niEI","downloadStatus":true,"isAvailable":true,"fileName":"PexSJ31niEI.mkv","thumbNailFile":"PexSJ31niEI.webp","onlineThumbnail":"https://i.ytimg.com/vi/PexSJ31niEI/sddefault.jpg?sqp=-oaymwEmCIAFEOAD8quKqQMa8AEB-AHSBoAC4AOKAgwIABABGFkgWShZMA8=&rs=AOn4CLAcuWHiDO7IaUGPtoIc2p9V4odxhg","subTitleFile":null,"descriptionFile":"PexSJ31niEI.description","isMetaDataSynced":true,"saveDirectory":"Dup Test"}},{"positionInPlaylist":2,"playlistUrl":"https://www.youtube.com/playlist?list=PL4Oo6H2hGqj0YkYoOLFmrbhsVWfAjCLZw","video_metadatum":{"title":"Run Immich through a docker container on Tailscale","videoId":"PexSJ31niEI","videoUrl":"https://www.youtube.com/watch?v=PexSJ31niEI","downloadStatus":true,"isAvailable":true,"fileName":"PexSJ31niEI.mkv","thumbNailFile":"PexSJ31niEI.webp","onlineThumbnail":"https://i.ytimg.com/vi/PexSJ31niEI/sddefault.jpg?sqp=-oaymwEmCIAFEOAD8quKqQMa8AEB-AHSBoAC4AOKAgwIABABGFkgWShZMA8=&rs=AOn4CLAcuWHiDO7IaUGPtoIc2p9V4odxhg","subTitleFile":null,"descriptionFile":"PexSJ31niEI.description","isMetaDataSynced":true,"saveDirectory":"Dup Test"}}],"saveDirectory":"Dup Test"}
+// 30. Delete Everything for "Dup Test"
+// Req: {"playListUrl":"https://www.youtube.com/playlist?list=PL4Oo6H2hGqj0YkYoOLFmrbhsVWfAjCLZw","deleteAllVideosInPlaylist":true,"deletePlaylist":true,"cleanUp":true}
+// Res: {"status":"success","message":"Removed all video references from playlist Dup Test and deleted playlist and cleaned up playlist directory (and marked 1 shared video(s) as un-downloaded)","cleanUp":true,"deletePlaylist":true,"deleteAllVideosInPlaylist":true}
+// Note: At this point the "Run Immich through a docker container on Tailscale" video still is in DB, but since it's marked as un-downloaded it will be pruned by the scheduler
+//       To see a video getting moved to "None" playlist we will need to add a playlist, download the video in it and then either unlink the videos in it or delete the playlist
+// TODO: Simulate those conditions and see the video getting moved to "None" playlist (Need to reduce the clean up timer to every minute and add a 2 min wait after the deletes)
