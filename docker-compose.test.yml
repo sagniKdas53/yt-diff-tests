@@ -52,6 +52,9 @@ services:
       - SAVE_PATH=/app/downloads
       - ALLOW_REGISTRATION=true
       - LOG_LEVELS=trace
+      - CLEANUP_INTERVAL=* * * * *
+      - PRUNE_INTERVAL=* * * * *
+      - UPDATE_SCHEDULED=* * * * *
     tmpfs:
       - /app/downloads:mode=1777
     ports:
