@@ -26,7 +26,7 @@ services:
   yt-diff-test:
     # Build from source by default to test latest local changes.
     # You can override this to use a pre-built image by setting YT_DIFF_IMAGE.
-    image: ${YT_DIFF_IMAGE:-yt-diff:test}
+    image: yt-diff:stabilization-final-v1
     build:
       context: ..
       dockerfile: Dockerfile
@@ -38,6 +38,11 @@ services:
         condition: service_healthy
       valkey-test:
         condition: service_healthy
+    volumes:
+      - ../src:/app/src
+      - ../index.ts:/app/index.ts
+      - ../deno.json:/app/deno.json
+      - ../deno.lock:/app/deno.lock
     environment:
       - PROTOCOL=http
       - HOSTNAME=localhost
@@ -62,15 +67,17 @@ services:
       timeout: 5s
       start_period: 10s
       retries: 5
-    # test-runner:
-    #   build:
-    #     context: .
-    #     dockerfile: Dockerfile.test
-    #   container_name: yt-diff-test-runner
-    #   depends_on:
-    #     yt-diff-test:
-    #       condition: service_healthy
-    #   environment:
-    #     - API_BASE_URL=http://yt-diff-test:8888/ytdiff
+  test-runner:
+    build:
+      context: .
+      dockerfile: Dockerfile.test
+    container_name: yt-diff-test-runner
+    depends_on:
+      yt-diff-test:
+        condition: service_healthy
+    volumes:
+      - ./api_test.ts:/app/api_test.ts
+    environment:
+      - API_BASE_URL=http://yt-diff-test:8888/ytdiff
     # We want to see the results on the host, but for now we just rely on logs.
     # You can also mount a volume if you want to persist the logs.
