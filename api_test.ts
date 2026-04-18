@@ -6,6 +6,7 @@
  */
 
 import { assertEquals, assertExists, assertNotEquals } from "std/assert/mod.ts";
+import { io } from "socket.io-client";
 
 const BASE_URL = Deno.env.get("API_BASE_URL") || "http://localhost:8888/ytdiff";
 const PUBLIC_DUP_TEST_PLAYLIST_URL =
@@ -31,55 +32,20 @@ const testUser = {
 };
 
 let token =
-  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjdkZTJiMzE3LWUyZDQtNGNkOS1hODcxLWI1MTI1YzRjN2FhNiIsImxhc3RQYXNzd29yZENoYW5nZVRpbWUiOiIyMDI2LTA0LTE4VDEyOjMzOjM0LjI1N1oiLCJpYXQiOjE3NzY1MTU2MjAsImV4cCI6MTc3OTE5NDAyMH0.YrtbQAstRlDOaqHeX3f-gUMTqSKDkGUJY2-wufsAyTE";
-let getSubListResponse = {
-  "count": 2,
-  "rows": [
-    {
-      "positionInPlaylist": 1,
-      "playlistUrl":
-        "https://www.youtube.com/playlist?list=PL4Oo6H2hGqj0YkYoOLFmrbhsVWfAjCLZw",
-      "video_metadatum": {
-        "title": "Run Immich through a docker container on Tailscale",
-        "videoId": "PexSJ31niEI",
-        "videoUrl": "https://www.youtube.com/watch?v=PexSJ31niEI",
-        "downloadStatus": false,
-        "isAvailable": true,
-        "fileName": null,
-        "thumbNailFile": null,
-        "onlineThumbnail":
-          "https://i.ytimg.com/vi/PexSJ31niEI/sddefault.jpg?sqp=-oaymwEmCIAFEOAD8quKqQMa8AEB-AHSBoAC4AOKAgwIABABGFkgWShZMA8=&rs=AOn4CLAcuWHiDO7IaUGPtoIc2p9V4odxhg",
-        "subTitleFile": null,
-        "descriptionFile": null,
-        "isMetaDataSynced": false,
-        "saveDirectory": null,
-      },
-    },
-    {
-      "positionInPlaylist": 2,
-      "playlistUrl":
-        "https://www.youtube.com/playlist?list=PL4Oo6H2hGqj0YkYoOLFmrbhsVWfAjCLZw",
-      "video_metadatum": {
-        "title": "Run Immich through a docker container on Tailscale",
-        "videoId": "PexSJ31niEI",
-        "videoUrl": "https://www.youtube.com/watch?v=PexSJ31niEI",
-        "downloadStatus": false,
-        "isAvailable": true,
-        "fileName": null,
-        "thumbNailFile": null,
-        "onlineThumbnail":
-          "https://i.ytimg.com/vi/PexSJ31niEI/sddefault.jpg?sqp=-oaymwEmCIAFEOAD8quKqQMa8AEB-AHSBoAC4AOKAgwIABABGFkgWShZMA8=&rs=AOn4CLAcuWHiDO7IaUGPtoIc2p9V4odxhg",
-        "subTitleFile": null,
-        "descriptionFile": null,
-        "isMetaDataSynced": false,
-        "saveDirectory": null,
-      },
-    },
-  ],
-  "saveDirectory": "Dup Test",
-};
+  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjMzMmE3ZTQ3LWY5NmItNDJjMi1hOTk1LTFkOGYxNjFkNmQ2MiIsImxhc3RQYXNzd29yZENoYW5nZVRpbWUiOiIyMDI2LTA0LTE4VDE4OjExOjIwLjU0OVoiLCJpYXQiOjE3NzY1MzU4OTAsImV4cCI6MTc3OTIxNDI5MH0.lI5gJUwo_tP7W_t-OdqHuY5syzkaC6zuH2X8rszquSY";
+let responseJson = {};
 // Helper to wait
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+// Need to connect to socket to verify socket based responses.
+const url = new URL(BASE_URL);
+const base = url.origin;
+const path = url.pathname;
+const socket = io(base, {
+  path: path + "/socket.io",
+  auth: { token },
+  forceNew: true,
+});
 
 async function apiRequest(endpoint: string, options: RequestInit = {}) {
   const url = `${BASE_URL}${endpoint}`;
@@ -275,7 +241,7 @@ Deno.test("Verify Dup Test Playlist Added - POST /getplay", async () => {
   assertEquals(testPlaylist.saveDirectory, "Dup Test");
 });
 
-Deno.test("Verify Videos in Dup Test Playlist - POST /getsub", async () => {
+Deno.test("Verify that there are 2 videos in Dup Test Playlist - POST /getsub", async () => {
   console.log("Verifying videos in playlist...");
   const resp = await apiRequest("/getsub", {
     method: "POST",
@@ -344,8 +310,6 @@ Deno.test("Verify Videos in Dup Test Playlist - POST /getsub", async () => {
   assertEquals(json.rows[1].video_metadatum.descriptionFile, null);
   assertEquals(json.rows[1].video_metadatum.isMetaDataSynced, false);
   assertEquals(json.rows[1].video_metadatum.saveDirectory, null);
-  // Finally export the response for next step
-  getSubListResponse = json;
 });
 
 // Done till above
@@ -386,6 +350,7 @@ Deno.test("Verify Videos in Dup Test Playlist - POST /getsub", async () => {
 // 12. Delete the playlist
 // Delete Play Req: {"playListUrl":"https://www.youtube.com/playlist?list=PL4Oo6H2hGqj0YkYoOLFmrbhsVWfAjCLZw","deleteAllVideosInPlaylist":false,"deletePlaylist":true,"cleanUp":false}
 // Delete Play Res: {"status":"success","message":"Deleted playlist Dup Test","cleanUp":false,"deletePlaylist":true,"deleteAllVideosInPlaylist":false}
+// =================This can be optomized further===========================
 // 13. Add Dup Test 2 Playlist
 // List Req: {"urlList":["https://www.youtube.com/playlist?list=PL4Oo6H2hGqj2fQCpmX2zfytLqD2Qv7yZY"],"chunkSize":9,"monitoringType":"N/A","sleep":true}
 // List Res: {"status":"success","message":"Listing initiated","items":[{"url":"https://www.youtube.com/playlist?list=PL4Oo6H2hGqj2fQCpmX2zfytLqD2Qv7yZY","type":"undetermined","currentMonitoringType":"N/A","reason":"URL not found in database"}]}
@@ -419,3 +384,38 @@ Deno.test("Verify Videos in Dup Test Playlist - POST /getsub", async () => {
 // 23. Get Playlists again (there should be no playlists now)
 // Req: {"start":0,"stop":10,"sort":"1","order":"1","query":""}
 // Res: {"count":0,"rows":[]}
+// ++++++++++++++++++++++++++
+// 13. Get Playlists again (there should be no playlists now)
+// Req: {"start":0,"stop":10,"sort":"1","order":"1","query":""}
+// Res: {"count":0,"rows":[]}
+// 14. Add the Unlisted playlist
+// Req: {"urlList":["https://www.youtube.com/playlist?list=PL4Oo6H2hGqj0iN_y58yjymtLFKC9qULfs"],"chunkSize":9,"monitoringType":"N/A","sleep":true}
+// Res: {"status":"success","message":"Listing initiated","items":[{"url":"https://www.youtube.com/playlist?list=PL4Oo6H2hGqj0iN_y58yjymtLFKC9qULfs","type":"undetermined","currentMonitoringType":"N/A","reason":"URL not found in database"}]}
+// 15. Get Playlists (there should be one items now)
+// Req: {"start":0,"stop":10,"sort":"1","order":"1","query":""}
+// Res: {"count":1,"rows":[{"playlistUrl":"https://www.youtube.com/playlist?list=PL4Oo6H2hGqj0iN_y58yjymtLFKC9qULfs","title":"E7 Shorts","sortOrder":0,"monitoringType":"N/A","saveDirectory":"E7 Shorts","createdAt":"2026-04-18T13:44:23.158Z","updatedAt":"2026-04-18T13:44:23.158Z","lastUpdatedByScheduler":"2026-04-18T13:44:23.155Z"}]}
+// 16. Get sub for the unlisted playlist (there should be 2 items)
+// Req: {"start":0,"stop":8,"sortDownloaded":false,"query":"","url":"https://www.youtube.com/playlist?list=PL4Oo6H2hGqj0iN_y58yjymtLFKC9qULfs"}
+// Res: {"count":2,"rows":[{"positionInPlaylist":1,"playlistUrl":"https://www.youtube.com/playlist?list=PL4Oo6H2hGqj0iN_y58yjymtLFKC9qULfs","video_metadatum":{"title":"Good Pets Epic Seven","videoId":"kr2lsFN_aM8","videoUrl":"https://www.youtube.com/watch?v=kr2lsFN_aM8","downloadStatus":false,"isAvailable":true,"fileName":null,"thumbNailFile":null,"onlineThumbnail":"https://i.ytimg.com/vi/kr2lsFN_aM8/maxresdefault.jpg","subTitleFile":null,"descriptionFile":null,"isMetaDataSynced":false,"saveDirectory":null}},{"positionInPlaylist":2,"playlistUrl":"https://www.youtube.com/playlist?list=PL4Oo6H2hGqj0iN_y58yjymtLFKC9qULfs","video_metadatum":{"title":"Screenrecording 20201222 143136 com stove epic7 google","videoId":"h0OdOdLtuQM","videoUrl":"https://www.youtube.com/watch?v=h0OdOdLtuQM","downloadStatus":false,"isAvailable":true,"fileName":null,"thumbNailFile":null,"onlineThumbnail":"https://i.ytimg.com/vi/h0OdOdLtuQM/maxresdefault.jpg","subTitleFile":null,"descriptionFile":null,"isMetaDataSynced":false,"saveDirectory":null}}],"saveDirectory":"E7 Shorts"}
+// 17. Unlink the first video in the sub list
+// Req: {"playListUrl":"https://www.youtube.com/playlist?list=PL4Oo6H2hGqj0iN_y58yjymtLFKC9qULfs","videoUrls":["https://www.youtube.com/watch?v=kr2lsFN_aM8"],"cleanUp":false,"deleteVideoMappings":true,"deleteVideosInDB":false}
+// Res: {"message":"Processed 1 video(s) from playlist E7 Shorts","deleted":["https://www.youtube.com/watch?v=kr2lsFN_aM8"],"failed":[],"cleanUp":false,"deleteVideoMappings":true,"deleteVideosInDB":false}
+// 18. Get sub for the unlisted playlist (there should be 1 item)
+// Req: {"start":0,"stop":8,"sortDownloaded":false,"query":"","url":"https://www.youtube.com/playlist?list=PL4Oo6H2hGqj0iN_y58yjymtLFKC9qULfs"}
+// Res: {"count":1,"rows":[{"positionInPlaylist":2,"playlistUrl":"https://www.youtube.com/playlist?list=PL4Oo6H2hGqj0iN_y58yjymtLFKC9qULfs","video_metadatum":{"title":"Screenrecording 20201222 143136 com stove epic7 google","videoId":"h0OdOdLtuQM","videoUrl":"https://www.youtube.com/watch?v=h0OdOdLtuQM","downloadStatus":false,"isAvailable":true,"fileName":null,"thumbNailFile":null,"onlineThumbnail":"https://i.ytimg.com/vi/h0OdOdLtuQM/maxresdefault.jpg","subTitleFile":null,"descriptionFile":null,"isMetaDataSynced":false,"saveDirectory":null}}],"saveDirectory":"E7 Shorts"}
+// 19. Delete the last video in the sub list
+// Req: {"playListUrl":"https://www.youtube.com/playlist?list=PL4Oo6H2hGqj0iN_y58yjymtLFKC9qULfs","videoUrls":["https://www.youtube.com/watch?v=h0OdOdLtuQM"],"cleanUp":true,"deleteVideoMappings":true,"deleteVideosInDB":true}
+// Res: {"message":"Processed 1 video(s) from playlist E7 Shorts","deleted":["https://www.youtube.com/watch?v=h0OdOdLtuQM"],"failed":[],"cleanUp":true,"deleteVideoMappings":true,"deleteVideosInDB":true}
+// 20. Get sub for the unlisted playlist (there should be 0 items)
+// Req: {"start":0,"stop":8,"sortDownloaded":false,"query":"","url":"https://www.youtube.com/playlist?list=PL4Oo6H2hGqj0iN_y58yjymtLFKC9qULfs"}
+// Res: {"count":0,"rows":[]}
+// We are not deleting E7 Shorts yet, it will be used for full clean up later
+// 21. Add Dup test 2 playlist
+// Req: {"urlList":["https://www.youtube.com/playlist?list=PL4Oo6H2hGqj2fQCpmX2zfytLqD2Qv7yZY"],"chunkSize":9,"monitoringType":"N/A","sleep":true}
+// Res: {"status":"success","message":"Listing initiated","items":[{"url":"https://www.youtube.com/playlist?list=PL4Oo6H2hGqj2fQCpmX2zfytLqD2Qv7yZY","type":"undetermined","currentMonitoringType":"N/A","reason":"URL not found in database"}]}
+// 22. Get playlists (there should be two playlists now)
+// Req: {"start":0,"stop":10,"sort":"1","order":"1","query":""}
+// Res: {"count":2,"rows":[{"playlistUrl":"https://www.youtube.com/playlist?list=PL4Oo6H2hGqj0iN_y58yjymtLFKC9qULfs","title":"E7 Shorts","sortOrder":0,"monitoringType":"N/A","saveDirectory":"E7 Shorts","createdAt":"2026-04-18T13:44:23.158Z","updatedAt":"2026-04-18T13:44:23.158Z","lastUpdatedByScheduler":"2026-04-18T13:44:23.155Z"},{"playlistUrl":"https://www.youtube.com/playlist?list=PL4Oo6H2hGqj2fQCpmX2zfytLqD2Qv7yZY","title":"Dup Test 2","sortOrder":1,"monitoringType":"N/A","saveDirectory":"Dup Test 2","createdAt":"2026-04-18T13:52:27.801Z","updatedAt":"2026-04-18T13:52:27.801Z","lastUpdatedByScheduler":"2026-04-18T13:52:27.798Z"}]}
+// 23. Get the sub list for "dup test 2" playlist (it should have only one item)
+// Req: {"start":0,"stop":8,"sortDownloaded":false,"query":"","url":"https://www.youtube.com/playlist?list=PL4Oo6H2hGqj2fQCpmX2zfytLqD2Qv7yZY"}
+// Res: {"count":1,"rows":[{"positionInPlaylist":1,"playlistUrl":"https://www.youtube.com/playlist?list=PL4Oo6H2hGqj2fQCpmX2zfytLqD2Qv7yZY","video_metadatum":{"title":"Run Immich through a docker container on Tailscale","videoId":"PexSJ31niEI","videoUrl":"https://www.youtube.com/watch?v=PexSJ31niEI","downloadStatus":false,"isAvailable":true,"fileName":null,"thumbNailFile":null,"onlineThumbnail":"https://i.ytimg.com/vi/PexSJ31niEI/sddefault.jpg?sqp=-oaymwEmCIAFEOAD8quKqQMa8AEB-AHSBoAC4AOKAgwIABABGFkgWShZMA8=&rs=AOn4CLAcuWHiDO7IaUGPtoIc2p9V4odxhg","subTitleFile":null,"descriptionFile":null,"isMetaDataSynced":false,"saveDirectory":null}}],"saveDirectory":"Dup Test 2"}
