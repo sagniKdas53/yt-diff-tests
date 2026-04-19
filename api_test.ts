@@ -506,3 +506,33 @@ Deno.test("Verify that there are 2 videos in Dup Test Playlist - POST /getsub", 
 // Note: The re-index all re-indexs all playlists in the defined range
 // Also add tests for adding all those private, empty, deleted videos and playlists, just need to check if thes failures still update the playlist index (Known bug will fix)
 // and the none  subist indexs are not mangled by the invalid vids
+// Clean up just in case
+// Delete the vids in sublist (one by one - probaly should add a way to delete multiple using the check boxes and stuff)
+// 55. Clean up - None playlist
+// Req 1: {"playListUrl":"None","videoUrls":["https://www.youtube.com/watch?v=dPiPWbkebEo"],"cleanUp":false,"deleteVideoMappings":true,"deleteVideosInDB":false}
+// Res 1: {"message":"Processed 1 video(s) from playlist None","deleted":["https://www.youtube.com/watch?v=dPiPWbkebEo"],"failed":[],"cleanUp":false,"deleteVideoMappings":true,"deleteVideosInDB":false}
+// Req 2: {"playListUrl":"None","videoUrls":["https://www.youtube.com/watch?v=i0S9vlyQpig"],"cleanUp":true,"deleteVideoMappings":true,"deleteVideosInDB":true}
+// Res 2: {"message":"Processed 1 video(s) from playlist None","deleted":["https://www.youtube.com/watch?v=i0S9vlyQpig"],"failed":[],"cleanUp":true,"deleteVideoMappings":true,"deleteVideosInDB":true}
+// Req 3: {"playListUrl":"None","videoUrls":["https://www.youtube.com/watch?v=JWdTskHy9TE"],"cleanUp":true,"deleteVideoMappings":true,"deleteVideosInDB":true}
+// Res 3: {"message":"Processed 1 video(s) from playlist None","deleted":["https://www.youtube.com/watch?v=JWdTskHy9TE"],"failed":[],"cleanUp":true,"deleteVideoMappings":true,"deleteVideosInDB":true}
+// 56. Get sub "None"
+// Req: {"start":0,"stop":8,"sortDownloaded":false,"query":"","url":"None"}
+// Res: {"count":0,"rows":[],"saveDirectory":""}
+// 57. Delete playlist
+// Req: {"playListUrl":"https://www.youtube.com/playlist?list=PL4Oo6H2hGqj2TwKOK-_dXvPlzs1DktqFX","deleteAllVideosInPlaylist":true,"deletePlaylist":true,"cleanUp":true}
+// Res: {"status":"success","message":"Removed all video references from playlist Engineering Stuff and deleted playlist and cleaned up playlist directory","cleanUp":true,"deletePlaylist":true,"deleteAllVideosInPlaylist":true}
+// 58. Get play
+// Req: {"start":0,"stop":10,"sort":"1","order":"1","query":""}
+// Res: {"count":0,"rows":[]}
+// TODO: Test adding muliple playlists and videos to None together (so that we can verify the categorization and streaming of updates)
+// Web socket event also need validation
+// 59. Get Files
+// Req: {"files":[{"saveDirectory":"","fileName":"hy3nSugZh1Y.webp"},{"saveDirectory":"","fileName":"FArOcK-HzXo.webp"},{"saveDirectory":"","fileName":"paFelc1vM1k.webp"},{"saveDirectory":"","fileName":"va-4BypzDQo.webp"}]}
+// Res: {"status":"success","files":{"hy3nSugZh1Y.webp":"1aa11997-8117-413c-b4ef-446a4f5bc3da","FArOcK-HzXo.webp":"3799f080-764c-4592-b182-2fa260e20c76","paFelc1vM1k.webp":"3533b08b-7394-4149-a830-956fa8e1513b","va-4BypzDQo.webp":"6312d140-7f6d-4e58-a332-b4c7ebc462c1"}}
+// 60. Get file:
+// Req: {"saveDirectory":"","fileName":"hy3nSugZh1Y.webm"}
+// Res: {"status":"success","signedUrlId":"5fe8ff62-9e12-4e4a-9ac0-c345e2996b36","expiry":1776595254060}
+// 61. Refresh File - Forgot How this works, I'll get back to this later
+// Refresh File Req: {"fileId":"5fe8ff62-9e12-4e4a-9ac0-c345e2996b36"}
+// Refresh File Res: {"status":"success","expiry":1776595554116}
+// Note: There are 60 steps, Refresh file was added twice one at first but I couldn't remeber how it worked so I add it at the bottom.
