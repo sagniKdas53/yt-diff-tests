@@ -257,6 +257,9 @@ Deno.test("Verify that there are 2 videos in Dup Test Playlist - POST /getsub", 
   assertEquals(json.count, 2);
   assertEquals(json.rows.length, 2);
   assertEquals(json.saveDirectory, "Dup Test");
+  assertExists(json.rows[0].id);
+  assertExists(json.rows[1].id);
+  assertNotEquals(json.rows[0].id, json.rows[1].id);
   // Row 1
   assertEquals(json.rows[0].positionInPlaylist, 1);
   assertEquals(json.rows[0].playlistUrl, PUBLIC_DUP_TEST_PLAYLIST_URL);
@@ -305,6 +308,63 @@ Deno.test("Verify that there are 2 videos in Dup Test Playlist - POST /getsub", 
   assertEquals(json.rows[1].video_metadatum.descriptionFile, null);
   assertEquals(json.rows[1].video_metadatum.isMetaDataSynced, false);
   assertEquals(json.rows[1].video_metadatum.saveDirectory, null);
+});
+
+Deno.test("Delete one duplicate playlist mapping by mapping id - POST /delsub", async () => {
+  const subResp = await apiRequest("/getsub", {
+    method: "POST",
+    body: JSON.stringify({
+      start: 0,
+      stop: 8,
+      sortDownloaded: false,
+      query: "",
+      url: PUBLIC_DUP_TEST_PLAYLIST_URL,
+    }),
+  });
+  assertEquals(subResp.status, 200);
+  const subJson = await subResp.json();
+  assertEquals(subJson.rows.length, 2);
+
+  const mappingIdToDelete = subJson.rows[1].id;
+  assertExists(mappingIdToDelete);
+
+  const delResp = await apiRequest("/delsub", {
+    method: "POST",
+    body: JSON.stringify({
+      playListUrl: PUBLIC_DUP_TEST_PLAYLIST_URL,
+      mappingIds: [mappingIdToDelete],
+      videoUrls: [],
+      cleanUp: false,
+      deleteVideoMappings: true,
+      deleteVideosInDB: false,
+    }),
+  });
+  assertEquals(delResp.status, 200);
+  const delJson = await delResp.json();
+  assertEquals(delJson.failed.length, 0);
+  assertEquals(delJson.deleted.length, 1);
+  assertEquals(delJson.deleteVideoMappings, true);
+  assertEquals(delJson.deleteVideosInDB, false);
+
+  const verifyResp = await apiRequest("/getsub", {
+    method: "POST",
+    body: JSON.stringify({
+      start: 0,
+      stop: 8,
+      sortDownloaded: false,
+      query: "",
+      url: PUBLIC_DUP_TEST_PLAYLIST_URL,
+    }),
+  });
+  assertEquals(verifyResp.status, 200);
+  const verifyJson = await verifyResp.json();
+  assertEquals(verifyJson.count, 1);
+  assertEquals(verifyJson.rows.length, 1);
+  assertNotEquals(verifyJson.rows[0].id, mappingIdToDelete);
+  assertEquals(
+    verifyJson.rows[0].video_metadatum.videoUrl,
+    PUBLIC_VIDEO_URL_2,
+  );
 });
 
 // Done:
