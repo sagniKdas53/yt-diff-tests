@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<rss version="2.0">
+<channel>
+  <title>Dup Test Mock</title>
+  <link>http://mock-tube:80/playlists/dup-test.rss</link>
+  <description>A mock playlist with 2 videos</description>
+  <item>
+    <title>Video 1 - Mock Tube</title>
+    <link>http://mock-tube:80/videos/video1.mp4</link>
+    <enclosure url="http://mock-tube:80/videos/video1.mp4" length="13" type="video/mp4" />
+  </item>
+  <item>
+    <title>Video 2 - Mock Tube</title>
+    <link>http://mock-tube:80/videos/video2.mp4</link>
+    <enclosure url="http://mock-tube:80/videos/video2.mp4" length="13" type="video/mp4" />
+  </item>
+</channel>
+</rss>

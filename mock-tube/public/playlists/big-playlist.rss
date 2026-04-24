@@ -1,0 +1,93 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<rss version="2.0">
+<channel>
+  <title>Big Playlist</title>
+  <link>http://mock-tube:80/playlists/big-playlist.rss?list=1</link>
+  <description>Mock for Big Playlist</description>
+  <item>
+    <title>video-big-1.mp4 - Big Playlist</title>
+    <link>http://mock-tube:80/videos/video-big-1.mp4</link>
+    <enclosure url="http://mock-tube:80/videos/video-big-1.mp4" length="2237" type="video/mp4" />
+  </item>
+  <item>
+    <title>video-big-2.mp4 - Big Playlist</title>
+    <link>http://mock-tube:80/videos/video-big-2.mp4</link>
+    <enclosure url="http://mock-tube:80/videos/video-big-2.mp4" length="2237" type="video/mp4" />
+  </item>
+  <item>
+    <title>video-big-3.mp4 - Big Playlist</title>
+    <link>http://mock-tube:80/videos/video-big-3.mp4</link>
+    <enclosure url="http://mock-tube:80/videos/video-big-3.mp4" length="2237" type="video/mp4" />
+  </item>
+  <item>
+    <title>video-big-4.mp4 - Big Playlist</title>
+    <link>http://mock-tube:80/videos/video-big-4.mp4</link>
+    <enclosure url="http://mock-tube:80/videos/video-big-4.mp4" length="2237" type="video/mp4" />
+  </item>
+  <item>
+    <title>video-big-5.mp4 - Big Playlist</title>
+    <link>http://mock-tube:80/videos/video-big-5.mp4</link>
+    <enclosure url="http://mock-tube:80/videos/video-big-5.mp4" length="2237" type="video/mp4" />
+  </item>
+  <item>
+    <title>video-big-6.mp4 - Big Playlist</title>
+    <link>http://mock-tube:80/videos/video-big-6.mp4</link>
+    <enclosure url="http://mock-tube:80/videos/video-big-6.mp4" length="2237" type="video/mp4" />
+  </item>
+  <item>
+    <title>video-big-7.mp4 - Big Playlist</title>
+    <link>http://mock-tube:80/videos/video-big-7.mp4</link>
+    <enclosure url="http://mock-tube:80/videos/video-big-7.mp4" length="2237" type="video/mp4" />
+  </item>
+  <item>
+    <title>video-big-8.mp4 - Big Playlist</title>
+    <link>http://mock-tube:80/videos/video-big-8.mp4</link>
+    <enclosure url="http://mock-tube:80/videos/video-big-8.mp4" length="2237" type="video/mp4" />
+  </item>
+  <item>
+    <title>video-big-9.mp4 - Big Playlist</title>
+    <link>http://mock-tube:80/videos/video-big-9.mp4</link>
+    <enclosure url="http://mock-tube:80/videos/video-big-9.mp4" length="2237" type="video/mp4" />
+  </item>
+  <item>
+    <title>video-big-10.mp4 - Big Playlist</title>
+    <link>http://mock-tube:80/videos/video-big-10.mp4</link>
+    <enclosure url="http://mock-tube:80/videos/video-big-10.mp4" length="2237" type="video/mp4" />
+  </item>
+  <item>
+    <title>video-big-11.mp4 - Big Playlist</title>
+    <link>http://mock-tube:80/videos/video-big-11.mp4</link>
+    <enclosure url="http://mock-tube:80/videos/video-big-11.mp4" length="2237" type="video/mp4" />
+  </item>
+  <item>
+    <title>video-big-12.mp4 - Big Playlist</title>
+    <link>http://mock-tube:80/videos/video-big-12.mp4</link>
+    <enclosure url="http://mock-tube:80/videos/video-big-12.mp4" length="2237" type="video/mp4" />
+  </item>
+  <item>
+    <title>video-big-13.mp4 - Big Playlist</title>
+    <link>http://mock-tube:80/videos/video-big-13.mp4</link>
+    <enclosure url="http://mock-tube:80/videos/video-big-13.mp4" length="2237" type="video/mp4" />
+  </item>
+  <item>
+    <title>video-big-14.mp4 - Big Playlist</title>
+    <link>http://mock-tube:80/videos/video-big-14.mp4</link>
+    <enclosure url="http://mock-tube:80/videos/video-big-14.mp4" length="2237" type="video/mp4" />
+  </item>
+  <item>
+    <title>video-big-15.mp4 - Big Playlist</title>
+    <link>http://mock-tube:80/videos/video-big-15.mp4</link>
+    <enclosure url="http://mock-tube:80/videos/video-big-15.mp4" length="2237" type="video/mp4" />
+  </item>
+  <item>
+    <title>video-big-16.mp4 - Big Playlist</title>
+    <link>http://mock-tube:80/videos/video-big-16.mp4</link>
+    <enclosure url="http://mock-tube:80/videos/video-big-16.mp4" length="2237" type="video/mp4" />
+  </item>
+  <item>
+    <title>video-big-17.mp4 - Big Playlist</title>
+    <link>http://mock-tube:80/videos/video-big-17.mp4</link>
+    <enclosure url="http://mock-tube:80/videos/video-big-17.mp4" length="2237" type="video/mp4" />
+  </item>
+</channel>
+</rss>

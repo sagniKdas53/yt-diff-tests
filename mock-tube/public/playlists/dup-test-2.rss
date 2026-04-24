@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<rss version="2.0">
+<channel>
+  <title>Dup Test 2</title>
+  <link>http://mock-tube:80/playlists/dup-test-2.rss?list=1</link>
+  <description>Mock for Dup Test 2</description>
+  <item>
+    <title>video-dup.mp4 - Dup Test 2</title>
+    <link>http://mock-tube:80/videos/video-dup.mp4</link>
+    <enclosure url="http://mock-tube:80/videos/video-dup.mp4" length="2237" type="video/mp4" />
+  </item>
+</channel>
+</rss>

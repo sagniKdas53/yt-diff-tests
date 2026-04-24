@@ -23,6 +23,15 @@ services:
       timeout: 5s
       retries: 5
 
+  mock-tube:
+    image: nginx:alpine
+    container_name: mock-tube
+    volumes:
+      - ./mock-tube/public:/usr/share/nginx/html:ro
+    ports:
+      - "8080:80"
+
+
   yt-diff-test:
     # Build from source by default to test latest local changes.
     # You can override this to use a pre-built image by setting YT_DIFF_IMAGE.
