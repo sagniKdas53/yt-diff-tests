@@ -30,7 +30,12 @@ services:
       - ./mock-tube/public:/usr/share/nginx/html:ro
     ports:
       - "8080:80"
-
+    healthcheck:
+      test: [ "CMD", "curl", "-f", "http://localhost/" ]
+      interval: 5s
+      timeout: 5s
+      start_period: 10s
+      retries: 5
 
   yt-diff-test:
     # Build from source by default to test latest local changes.
@@ -61,6 +66,7 @@ services:
       - SAVE_PATH=/app/downloads
       - ALLOW_REGISTRATION=true
       - LOG_LEVELS=trace
+      - NO_COLOR=true
       - CLEANUP_INTERVAL=* * * * *
       - PRUNE_INTERVAL=* * * * *
       - UPDATE_SCHEDULED=* * * * *
@@ -84,8 +90,8 @@ services:
     depends_on:
       yt-diff-test:
         condition: service_healthy
-    volumes:
-      - ./api_test.ts:/app/api_test.ts
+      mock-tube:
+        condition: service_healthy
     environment:
       - API_BASE_URL=http://yt-diff-test:8888/ytdiff
     # We want to see the results on the host, but for now we just rely on logs.
