@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<rss version="2.0">
+<channel>
+  <title>Failed Playlist</title>
+  <link>http://mock-tube:80/playlists/failed-playlist.rss?list=1</link>
+  <description>Mock for Failed Playlist</description>
+</channel>
+</rss>

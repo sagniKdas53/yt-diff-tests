@@ -34,20 +34,28 @@ def create_rss(name, title, videos):
     with open(path, "w") as f:
         f.write(content)
 
-# 1. dup-test-1 (2 items)
-create_rss("dup-test-1.rss", "Dup Test 1", ["video-dup.mp4", "video-unique1.mp4"])
-# 2. dup-test-2 (1 item overlapping)
-create_rss("dup-test-2.rss", "Dup Test 2", ["video-dup.mp4"])
-# 3. big-playlist (17 items)
-create_rss("big-playlist.rss", "Big Playlist", [f"video-big-{i}.mp4" for i in range(1, 18)])
-# 4. unlisted-playlist
-create_rss("unlisted-playlist.rss", "Unlisted Playlist", ["video-unlisted-pl.mp4"])
-# 5. empty-playlist
-create_rss("empty-playlist.rss", "Empty Playlist", [])
-# 6. engineering-playlist
-create_rss("engineering-playlist.rss", "Engineering Playlist", ["video-engineering.mp4"])
+# Suite 1: Dup Test (2 identical items)
+create_rss("dup-test-1.rss", "Dup Test", ["video-dup.mp4", "video-dup.mp4"])
 
-# Create single videos
+# Suite 2: Dup Test 2 (1 item overlapping)
+create_rss("dup-test-2.rss", "Dup Test 2", ["video-dup.mp4"])
+
+# Suite 3: E7 Shorts
+create_rss("e7-shorts.rss", "E7 Shorts", ["video-e7-1.mp4", "video-e7-2.mp4"])
+
+# Suite 4: Screen recordings (17 items)
+create_rss("big-playlist.rss", "Screen recordings", [f"video-big-{i}.mp4" for i in range(1, 18)])
+
+# Suite 7: Engineering Stuff
+create_rss("engineering-playlist.rss", "Engineering Stuff", ["video-engineering.mp4"])
+
+# Suite 11: Failed Playlist Bootstrap (Empty playlist to simulate missing items)
+create_rss("failed-playlist.rss", "Failed Playlist", [])
+
+# Single videos for Suite 6
+create_video("video-single.mp4")
+
+# Other potentially needed videos
 create_video("video-public.mp4")
 create_video("video-unlisted.mp4")
 
