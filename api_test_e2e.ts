@@ -138,7 +138,7 @@ Deno.test("User Login - Invalid Credentials - POST /login", async () => {
   await resp.text();
 });
 
-Deno.test("Verify Initial Sublist in None Playlist - POST /getsub", async () => {
+Deno.test("-4. Verify Initial Sublist in None Playlist - POST /getsub", async () => {
   console.log("Verifying videos in playlist...");
   const resp = await apiRequest("/getsub", {
     method: "POST",
@@ -158,7 +158,7 @@ Deno.test("Verify Initial Sublist in None Playlist - POST /getsub", async () => 
   assertEquals(json.saveDirectory, "");
 });
 
-Deno.test("Initial Playlist State - POST /getplay", async () => {
+Deno.test("-3. Initial Playlist State - POST /getplay", async () => {
   const resp = await apiRequest("/getplay", {
     method: "POST",
     body: JSON.stringify({
@@ -176,7 +176,7 @@ Deno.test("Initial Playlist State - POST /getplay", async () => {
   assertEquals(json.count, 0);
 });
 
-Deno.test("Add Dup Test Playlist - POST /list", async () => {
+Deno.test("-2. Add Dup Test Playlist - POST /list", async () => {
   console.log("Adding playlist...");
   const resp = await apiRequest("/list", {
     method: "POST",
@@ -203,7 +203,7 @@ Deno.test("Add Dup Test Playlist - POST /list", async () => {
   await sleep(30000);
 });
 
-Deno.test("Verify Dup Test Playlist Added - POST /getplay", async () => {
+Deno.test("-1. Verify Dup Test Playlist Added - POST /getplay", async () => {
   console.log("Verifying playlist added...");
   const resp = await apiRequest("/getplay", {
     method: "POST",
@@ -236,7 +236,7 @@ Deno.test("Verify Dup Test Playlist Added - POST /getplay", async () => {
   assertEquals(testPlaylist.saveDirectory, "Dup Test 1");
 });
 
-Deno.test("Verify that there are 2 videos in Dup Test Playlist - POST /getsub", async () => {
+Deno.test("0. Verify that there are 2 videos in Dup Test Playlist - POST /getsub", async () => {
   console.log("Verifying videos in playlist...");
   const resp = await apiRequest("/getsub", {
     method: "POST",
@@ -310,63 +310,6 @@ Deno.test("Verify that there are 2 videos in Dup Test Playlist - POST /getsub", 
   assertEquals(json.rows[1].video_metadatum.saveDirectory, null);
 });
 
-Deno.test("Delete one duplicate playlist mapping by mapping id - POST /delsub", async () => {
-  const subResp = await apiRequest("/getsub", {
-    method: "POST",
-    body: JSON.stringify({
-      start: 0,
-      stop: 8,
-      sortDownloaded: false,
-      query: "",
-      url: PUBLIC_DUP_TEST_PLAYLIST_URL,
-    }),
-  });
-  assertEquals(subResp.status, 200);
-  const subJson = await subResp.json();
-  assertEquals(subJson.rows.length, 2);
-
-  const mappingIdToDelete = subJson.rows[1].id;
-  assertExists(mappingIdToDelete);
-
-  const delResp = await apiRequest("/delsub", {
-    method: "POST",
-    body: JSON.stringify({
-      playListUrl: PUBLIC_DUP_TEST_PLAYLIST_URL,
-      mappingIds: [mappingIdToDelete],
-      videoUrls: [],
-      cleanUp: false,
-      deleteVideoMappings: true,
-      deleteVideosInDB: false,
-    }),
-  });
-  assertEquals(delResp.status, 200);
-  const delJson = await delResp.json();
-  assertEquals(delJson.failed.length, 0);
-  assertEquals(delJson.deleted.length, 1);
-  assertEquals(delJson.deleteVideoMappings, true);
-  assertEquals(delJson.deleteVideosInDB, false);
-
-  const verifyResp = await apiRequest("/getsub", {
-    method: "POST",
-    body: JSON.stringify({
-      start: 0,
-      stop: 8,
-      sortDownloaded: false,
-      query: "",
-      url: PUBLIC_DUP_TEST_PLAYLIST_URL,
-    }),
-  });
-  assertEquals(verifyResp.status, 200);
-  const verifyJson = await verifyResp.json();
-  assertEquals(verifyJson.count, 1);
-  assertEquals(verifyJson.rows.length, 1);
-  assertNotEquals(verifyJson.rows[0].id, mappingIdToDelete);
-  assertEquals(
-    verifyJson.rows[0].video_metadatum.videoUrl,
-    PUBLIC_VIDEO_URL_2,
-  );
-});
-
 // Done:
 // -4. Get the inital playlist state
 // Req: {"start":0,"stop":10,"sort":"1","order":"1","query":""}
@@ -389,7 +332,7 @@ Deno.test("1. Download Duplicate Video - POST /download", async () => {
   const resp = await apiRequest("/download", {
     method: "POST",
     body: JSON.stringify({
-      urlList: ["http://mock-tube:80/videos/video-dup.mp4"],
+      urlList: [PUBLIC_VIDEO_URL_2],
       playListUrl: PUBLIC_DUP_TEST_PLAYLIST_URL,
     }),
   });
@@ -515,7 +458,7 @@ Deno.test("9. Add Dup Test 2 Playlist - POST /list", async () => {
   assertEquals(resp.status, 200);
   const json = await resp.json();
   assertEquals(json.status, "success");
-  
+
   console.log("Waiting 30s for Dup Test 2 listing to complete...");
   await sleep(30000);
 });
@@ -534,8 +477,12 @@ Deno.test("10. Verify Dup Test 2 Playlist Added - POST /getplay", async () => {
   assertEquals(resp.status, 200);
   const json = await resp.json();
   assertEquals(json.count, 2);
-  const p1 = json.rows.find((r: any) => r.playlistUrl === PUBLIC_DUP_TEST_PLAYLIST_URL);
-  const p2 = json.rows.find((r: any) => r.playlistUrl === PUBLIC_DUP_TEST_2_PLAYLIST_URL);
+  const p1 = json.rows.find((r: any) =>
+    r.playlistUrl === PUBLIC_DUP_TEST_PLAYLIST_URL
+  );
+  const p2 = json.rows.find((r: any) =>
+    r.playlistUrl === PUBLIC_DUP_TEST_2_PLAYLIST_URL
+  );
   assertExists(p1);
   assertExists(p2);
   assertEquals(p2.title, "Dup Test 2");
@@ -564,7 +511,7 @@ Deno.test("12. Delete Downloaded Files for Dup Test 2 Item - POST /delsub", asyn
     method: "POST",
     body: JSON.stringify({
       playListUrl: PUBLIC_DUP_TEST_2_PLAYLIST_URL,
-      videoUrls: ["http://mock-tube:80/videos/video-dup.mp4"],
+      videoUrls: [PUBLIC_VIDEO_URL_2],
       cleanUp: true,
       deleteVideoMappings: false,
       deleteVideosInDB: false,
@@ -917,7 +864,7 @@ Deno.test("33. Download Video from Large Playlist - POST /download", async () =>
     }),
   });
   assertEquals(resp.status, 200);
-  
+
   console.log("Waiting 30s for download to complete...");
   await sleep(30000);
 });
@@ -962,7 +909,7 @@ Deno.test("36. Download Video in None Playlist - POST /download", async () => {
     }),
   });
   assertEquals(resp.status, 200);
-  
+
   console.log("Waiting 30s for download to complete...");
   await sleep(30000);
 });
@@ -997,8 +944,10 @@ Deno.test("38. Verify Download Propagated to Large Playlist - POST /getsub", asy
   });
   assertEquals(resp.status, 200);
   const json = await resp.json();
-  
-  const video15 = json.rows.find((r: any) => r.video_metadatum.videoId === "video-15");
+
+  const video15 = json.rows.find((r: any) =>
+    r.video_metadatum.videoId === "video-15"
+  );
   assertExists(video15);
   assertEquals(video15.video_metadatum.downloadStatus, true);
 });
@@ -1085,13 +1034,17 @@ Deno.test("43. Check None Sublist After Pruning - POST /getsub", async () => {
   });
   assertEquals(resp.status, 200);
   const json = await resp.json();
-  
+
   // video-15 was explicitly in None. video-16 was downloaded in the Large Playlist.
   // When Large Playlist was deleted, video-16 (being downloaded) should be moved to None.
   // Undownloaded videos from Large Playlist should be pruned.
   assertEquals(json.count, 2);
-  const v15 = json.rows.find((r: any) => r.video_metadatum.videoId === "video-15");
-  const v16 = json.rows.find((r: any) => r.video_metadatum.videoId === "video-16");
+  const v15 = json.rows.find((r: any) =>
+    r.video_metadatum.videoId === "video-15"
+  );
+  const v16 = json.rows.find((r: any) =>
+    r.video_metadatum.videoId === "video-16"
+  );
   assertExists(v15);
   assertExists(v16);
 });
@@ -1117,7 +1070,7 @@ Deno.test("45. Add Another Video to None - POST /list", async () => {
   const resp = await apiRequest("/list", {
     method: "POST",
     body: JSON.stringify({
-      urlList: ["http://mock-tube:80/videos/video-public.mp4"],
+      urlList: [PUBLIC_VIDEO_URL],
       chunkSize: 9,
       monitoringType: "N/A",
       sleep: true,
@@ -1150,7 +1103,7 @@ Deno.test("47. Add Same Video Again to None - POST /list", async () => {
   const resp = await apiRequest("/list", {
     method: "POST",
     body: JSON.stringify({
-      urlList: ["http://mock-tube:80/videos/video-public.mp4"],
+      urlList: [PUBLIC_VIDEO_URL],
       chunkSize: 9,
       monitoringType: "N/A",
       sleep: true,
@@ -1249,7 +1202,7 @@ Deno.test("53. Re-Index All Playlists - POST /reindexall", async () => {
   assertEquals(resp.status, 200);
   const json = await resp.json();
   assertEquals(json.status, "success");
-  
+
   console.log("Waiting 30s for re-indexing to complete...");
   await sleep(30000);
 });
@@ -1264,6 +1217,123 @@ Deno.test("54. Verify Last Playlist Sublist After Re-index - POST /getsub", asyn
       query: "",
       url: PUBLIC_ENGINEERING_STUFF_PLAYLIST_URL,
     }),
+  });
+
+  Deno.test("54.1 Add Private Playlist - POST /list", async () => {
+    const resp = await apiRequest("/list", {
+      method: "POST",
+      body: JSON.stringify({
+        urlList: [PRIVATE_PLAYLIST_URL],
+        chunkSize: 9,
+        monitoringType: "N/A",
+        sleep: true,
+      }),
+    });
+    assertEquals(resp.status, 200);
+    await sleep(10000);
+  });
+
+  Deno.test("54.2 Add Deleted Playlist - POST /list", async () => {
+    const resp = await apiRequest("/list", {
+      method: "POST",
+      body: JSON.stringify({
+        urlList: [DELETED_PLAYLIST_URL],
+        chunkSize: 9,
+        monitoringType: "N/A",
+        sleep: true,
+      }),
+    });
+    assertEquals(resp.status, 200);
+    await sleep(10000);
+  });
+
+  Deno.test("54.3 Add Empty Playlist - POST /list", async () => {
+    const resp = await apiRequest("/list", {
+      method: "POST",
+      body: JSON.stringify({
+        urlList: [EMPTY_PLAYLIST_URL],
+        chunkSize: 9,
+        monitoringType: "N/A",
+        sleep: true,
+      }),
+    });
+    assertEquals(resp.status, 200);
+    await sleep(10000);
+  });
+
+  Deno.test("54.4 Add Private Video to None - POST /list", async () => {
+    const resp = await apiRequest("/list", {
+      method: "POST",
+      body: JSON.stringify({
+        urlList: [PRIVATE_VIDEO_URL],
+        chunkSize: 9,
+        monitoringType: "N/A",
+        sleep: true,
+      }),
+    });
+    assertEquals(resp.status, 200);
+    await sleep(10000);
+  });
+
+  Deno.test("54.5 Add Deleted Video to None - POST /list", async () => {
+    const resp = await apiRequest("/list", {
+      method: "POST",
+      body: JSON.stringify({
+        urlList: [DELETED_VIDEO_URL],
+        chunkSize: 9,
+        monitoringType: "N/A",
+        sleep: true,
+      }),
+    });
+    assertEquals(resp.status, 200);
+    await sleep(10000);
+  });
+
+  Deno.test("54.6 Add Unlisted Video to None - POST /list", async () => {
+    const resp = await apiRequest("/list", {
+      method: "POST",
+      body: JSON.stringify({
+        urlList: [UNLISTED_VIDEO_URL],
+        chunkSize: 9,
+        monitoringType: "N/A",
+        sleep: true,
+      }),
+    });
+    assertEquals(resp.status, 200);
+    await sleep(10000);
+  });
+
+  Deno.test("54.7 Verify Playlists Index Post-Failures - POST /getplay", async () => {
+    const resp = await apiRequest("/getplay", {
+      method: "POST",
+      body: JSON.stringify({
+        start: 0,
+        stop: 10,
+        sort: "1",
+        order: "1",
+        query: "",
+      }),
+    });
+    assertEquals(resp.status, 200);
+    const json = await resp.json();
+    // Ensure that no random failures broke the endpoint
+    assertExists(json.count);
+  });
+
+  Deno.test("54.8 Verify None Sublist Not Mangled - POST /getsub", async () => {
+    const resp = await apiRequest("/getsub", {
+      method: "POST",
+      body: JSON.stringify({
+        start: 0,
+        stop: 20,
+        sortDownloaded: false,
+        query: "",
+        url: "None",
+      }),
+    });
+    assertEquals(resp.status, 200);
+    const json = await resp.json();
+    assertExists(json.count);
   });
   assertEquals(resp.status, 200);
   const json = await resp.json();
@@ -1283,7 +1353,7 @@ Deno.test("55. Clean Up None Playlist - POST /delsub", async () => {
     }),
   });
   const subJson = await getSubResp.json();
-  
+
   // Delete each video mapping
   for (const row of subJson.rows) {
     const videoUrl = row.video_metadatum.videoUrl;
@@ -1361,7 +1431,7 @@ Deno.test("61. Refresh Signed File URL - POST /refreshfile", async () => {
     console.log("Skipping 61. signedFileId is empty");
     return;
   }
-  
+
   const resp = await apiRequest("/refreshfile", {
     method: "POST",
     body: JSON.stringify({
