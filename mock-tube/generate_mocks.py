@@ -1,7 +1,7 @@
 import os
 import subprocess
 
-base_dir = "tests/mock-tube/public"
+base_dir = "mock-tube/public"
 os.makedirs(f"{base_dir}/playlists", exist_ok=True)
 os.makedirs(f"{base_dir}/videos", exist_ok=True)
 

@@ -85,7 +85,7 @@ services:
   test-runner:
     build:
       context: .
-      dockerfile: Dockerfile.test
+      dockerfile: Dockerfile
     container_name: yt-diff-test-runner
     depends_on:
       yt-diff-test:
