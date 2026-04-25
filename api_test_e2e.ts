@@ -35,8 +35,7 @@ const testUser = {
 };
 
 let token = "";
-let dupMappingId1 = "";
-let dupMappingId2 = "";
+let dupMappingId = "";
 let signedFileId = "";
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -691,10 +690,10 @@ Deno.test("TC-4.8 — Download state visible from the original playlist context"
     }),
   });
   const json = await resp.json();
-  const v15 = json.rows.find((r: any) =>
+  const v15 = json.rows.find((r: { video_metadatum: { videoUrl: string } }) =>
     r.video_metadatum.videoUrl === BIG_VIDEO_15_URL
   );
-  const v16 = json.rows.find((r: any) =>
+  const v16 = json.rows.find((r: { video_metadatum: { videoUrl: string } }) =>
     r.video_metadatum.videoUrl === BIG_VIDEO_16_URL
   );
   assertEquals(v15.video_metadatum.downloadStatus, true);
@@ -1014,8 +1013,7 @@ Deno.test("TC-10.1 — /getsub returns a mapping id for each row", async () => {
   assertNotEquals(json.rows[0].id, json.rows[1].id);
   assertEquals(json.rows[0].video_metadatum.videoUrl, DUP_VIDEO_URL);
   assertEquals(json.rows[1].video_metadatum.videoUrl, DUP_VIDEO_URL);
-  dupMappingId1 = json.rows[0].id;
-  dupMappingId2 = json.rows[1].id;
+  dupMappingId = json.rows[0].id;
 });
 
 Deno.test("TC-10.2 — Delete only the first duplicate by mapping ID", async () => {
@@ -1023,7 +1021,7 @@ Deno.test("TC-10.2 — Delete only the first duplicate by mapping ID", async () 
     method: "POST",
     body: JSON.stringify({
       playListUrl: PUBLIC_DUP_TEST_PLAYLIST_URL,
-      mappingIds: [dupMappingId1],
+      mappingIds: [dupMappingId],
       cleanUp: false,
       deleteVideoMappings: true,
       deleteVideosInDB: false,
