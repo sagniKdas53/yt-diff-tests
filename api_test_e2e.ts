@@ -60,6 +60,8 @@ function tracked(name: string, fn: () => Promise<void>): () => Promise<void> {
 import { assertEquals, assertExists, assertNotEquals } from "std/assert/mod.ts";
 
 const BASE_URL = Deno.env.get("API_BASE_URL") || "http://localhost:8888/ytdiff";
+const REPORTS_DIR = Deno.env.get("REPORTS_DIR") ||
+  "/home/sagnik/Projects/docker-composes/yt-diff/tests/reports";
 
 const PUBLIC_DUP_TEST_PLAYLIST_URL =
   "http://mock-tube:80/playlists/dup-test-1.rss?list=1";
@@ -543,6 +545,10 @@ Deno.test(
   tracked(
     "TC-2.6 — 'Dup Test' sublist also reflects the shared un-downloaded state",
     async () => {
+      // The update cron (monitoringType "Full" from TC-1.6) can re-index
+      // the playlist mid-suite, causing a transient count=0. Poll first.
+      await waitForSubCount(PUBLIC_DUP_TEST_PLAYLIST_URL, 2);
+
       const resp = await apiRequest("/getsub", {
         method: "POST",
         body: JSON.stringify({
@@ -1804,12 +1810,11 @@ Deno.test("📊 Test Report", async () => {
   console.log(report);
 
   // Persist to mounted volume so the host can access it
-  const reportDir = "/app/reports";
   try {
-    await Deno.mkdir(reportDir, { recursive: true });
+    await Deno.mkdir(REPORTS_DIR, { recursive: true });
   } catch { /* already exists */ }
-  await Deno.writeTextFile(`${reportDir}/report.txt`, report);
-  console.log(`Report saved to ${reportDir}/report.txt`);
+  await Deno.writeTextFile(`${REPORTS_DIR}/report.txt`, report);
+  console.log(`Report saved to ${REPORTS_DIR}/report.txt`);
 });
 
 function formatMs(ms: number): string {

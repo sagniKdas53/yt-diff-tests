@@ -94,5 +94,6 @@ services:
         condition: service_healthy
     environment:
       - API_BASE_URL=http://yt-diff-test:8888/ytdiff
+      - REPORTS_DIR=/app/reports
     volumes:
       - ./reports:/app/reports
