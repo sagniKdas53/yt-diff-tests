@@ -26,11 +26,13 @@ Verify the system starts from an empty state before any test data is inserted.
 **Endpoint:** `POST /getplay`
 
 **Request:**
+
 ```json
 { "start": 0, "stop": 10, "sort": "1", "order": "1", "query": "" }
 ```
 
 **Expected Response:**
+
 ```json
 { "count": 0, "rows": [] }
 ```
@@ -44,11 +46,13 @@ Verify the system starts from an empty state before any test data is inserted.
 **Endpoint:** `POST /getsub`
 
 **Request:**
+
 ```json
 { "start": 0, "stop": 10, "sortDownloaded": false, "query": "", "url": "None" }
 ```
 
 **Expected Response:**
+
 ```json
 { "count": 0, "rows": [], "saveDirectory": "" }
 ```
@@ -75,6 +79,7 @@ indexed correctly, that downloading one entry downloads the shared
 **Endpoint:** `POST /list`
 
 **Request:**
+
 ```json
 {
   "urlList": ["https://www.youtube.com/playlist?list=PL4Oo6H2hGqj0YkYoOLFmrbhsVWfAjCLZw"],
@@ -85,6 +90,7 @@ indexed correctly, that downloading one entry downloads the shared
 ```
 
 **Expected Response:**
+
 ```json
 {
   "status": "success",
@@ -107,11 +113,13 @@ indexed correctly, that downloading one entry downloads the shared
 **Endpoint:** `POST /getplay`
 
 **Request:**
+
 ```json
 { "start": 0, "stop": 10, "sort": "1", "order": "1", "query": "" }
 ```
 
 **Assert:**
+
 - `count === 1`
 - `rows[0].title === "Dup Test"`
 - `rows[0].monitoringType === "N/A"`
@@ -125,6 +133,7 @@ indexed correctly, that downloading one entry downloads the shared
 **Endpoint:** `POST /getsub`
 
 **Request:**
+
 ```json
 {
   "start": 0,
@@ -136,6 +145,7 @@ indexed correctly, that downloading one entry downloads the shared
 ```
 
 **Assert:**
+
 - `count === 2`
 - `rows[0].positionInPlaylist === 1`
 - `rows[1].positionInPlaylist === 2`
@@ -149,6 +159,7 @@ indexed correctly, that downloading one entry downloads the shared
 **Endpoint:** `POST /download`
 
 **Request:**
+
 ```json
 {
   "urlList": ["https://www.youtube.com/watch?v=PexSJ31niEI"],
@@ -157,6 +168,7 @@ indexed correctly, that downloading one entry downloads the shared
 ```
 
 **Assert:**
+
 - `status === "success"`
 - `items[0].url === "https://www.youtube.com/watch?v=PexSJ31niEI"`
 - `items[0].saveDirectory === "Dup Test"`
@@ -172,6 +184,7 @@ indexed correctly, that downloading one entry downloads the shared
 **Endpoint:** `POST /getsub` (same request as TC-1.3)
 
 **Assert:**
+
 - `count === 2`
 - Both rows: `downloadStatus === true`
 - Both rows: `fileName === "PexSJ31niEI.mkv"`
@@ -187,6 +200,7 @@ indexed correctly, that downloading one entry downloads the shared
 **Endpoint:** `POST /watch`
 
 **Request:**
+
 ```json
 {
   "url": "https://www.youtube.com/playlist?list=PL4Oo6H2hGqj0YkYoOLFmrbhsVWfAjCLZw",
@@ -222,6 +236,7 @@ up files in one context resets the shared `VideoMetadata` record everywhere.
 **Endpoint:** `POST /list`
 
 **Request:**
+
 ```json
 {
   "urlList": ["https://www.youtube.com/playlist?list=PL4Oo6H2hGqj2fQCpmX2zfytLqD2Qv7yZY"],
@@ -240,6 +255,7 @@ up files in one context resets the shared `VideoMetadata` record everywhere.
 **Endpoint:** `POST /getplay`
 
 **Assert:**
+
 - `count === 2`
 - `rows[1].title === "Dup Test 2"`
 - `rows[1].sortOrder === 1`
@@ -251,6 +267,7 @@ up files in one context resets the shared `VideoMetadata` record everywhere.
 **Endpoint:** `POST /getsub` with `url` set to the `Dup Test 2` URL
 
 **Assert:**
+
 - `count === 1`
 - `rows[0].video_metadatum.downloadStatus === true` — download state is shared across playlists via `VideoMetadata`
 - `rows[0].video_metadatum.fileName === "PexSJ31niEI.mkv"`
@@ -263,6 +280,7 @@ up files in one context resets the shared `VideoMetadata` record everywhere.
 **Endpoint:** `POST /delsub`
 
 **Request:**
+
 ```json
 {
   "playListUrl": "https://www.youtube.com/playlist?list=PL4Oo6H2hGqj2fQCpmX2zfytLqD2Qv7yZY",
@@ -274,6 +292,7 @@ up files in one context resets the shared `VideoMetadata` record everywhere.
 ```
 
 **Assert:**
+
 - `deleted` array contains the video URL
 - `failed` array is empty
 
@@ -284,6 +303,7 @@ up files in one context resets the shared `VideoMetadata` record everywhere.
 **Endpoint:** `POST /getsub` (Dup Test 2)
 
 **Assert:**
+
 - `count === 1` — mapping is still present
 - `downloadStatus === false`
 - `fileName === null`, `thumbNailFile === null`
@@ -295,6 +315,7 @@ up files in one context resets the shared `VideoMetadata` record everywhere.
 **Endpoint:** `POST /getsub` (Dup Test)
 
 **Assert:**
+
 - `count === 2`
 - Both rows: `downloadStatus === false`, `fileName === null`
 - Confirms the `VideoMetadata` record is shared — cleanup in one playlist context propagates everywhere.
@@ -306,6 +327,7 @@ up files in one context resets the shared `VideoMetadata` record everywhere.
 **Endpoint:** `POST /delplay`
 
 **Request (unlink):**
+
 ```json
 {
   "playListUrl": "https://www.youtube.com/playlist?list=PL4Oo6H2hGqj2fQCpmX2zfytLqD2Qv7yZY",
@@ -318,6 +340,7 @@ up files in one context resets the shared `VideoMetadata` record everywhere.
 **Assert:** `status === "success"`.
 
 **Request (delete playlist):**
+
 ```json
 {
   "playListUrl": "https://www.youtube.com/playlist?list=PL4Oo6H2hGqj2fQCpmX2zfytLqD2Qv7yZY",
@@ -336,6 +359,7 @@ up files in one context resets the shared `VideoMetadata` record everywhere.
 **Endpoint:** `POST /delplay`
 
 **Request:**
+
 ```json
 {
   "playListUrl": "https://www.youtube.com/playlist?list=PL4Oo6H2hGqj0YkYoOLFmrbhsVWfAjCLZw",
@@ -346,6 +370,7 @@ up files in one context resets the shared `VideoMetadata` record everywhere.
 ```
 
 **Assert:**
+
 - `status === "success"`
 - Response message notes that shared video(s) were marked as un-downloaded.
 - Subsequent `GET /getplay` returns `count === 0`.
@@ -374,6 +399,7 @@ Validates the three `/delsub` deletion modes: full delete (`deleteVideosInDB`), 
 **Endpoint:** `POST /delsub`
 
 **Request:**
+
 ```json
 {
   "playListUrl": "https://www.youtube.com/playlist?list=PL4Oo6H2hGqj0iN_y58yjymtLFKC9qULfs",
@@ -393,6 +419,7 @@ Validates the three `/delsub` deletion modes: full delete (`deleteVideosInDB`), 
 **Endpoint:** `POST /getsub` (E7 Shorts)
 
 **Assert:**
+
 - `count === 1`
 - `rows[0].positionInPlaylist === 2`
 - `rows[0].video_metadatum.videoId === "h0OdOdLtuQM"`
@@ -404,6 +431,7 @@ Validates the three `/delsub` deletion modes: full delete (`deleteVideosInDB`), 
 **Endpoint:** `POST /delsub`
 
 **Request:**
+
 ```json
 {
   "playListUrl": "https://www.youtube.com/playlist?list=PL4Oo6H2hGqj0iN_y58yjymtLFKC9qULfs",
@@ -431,6 +459,7 @@ Validates the three `/delsub` deletion modes: full delete (`deleteVideosInDB`), 
 **Endpoint:** `POST /delplay`
 
 **Request:**
+
 ```json
 {
   "playListUrl": "https://www.youtube.com/playlist?list=PL4Oo6H2hGqj0iN_y58yjymtLFKC9qULfs",
@@ -471,12 +500,13 @@ Validates paginated sublist retrieval, `sortDownloaded` ordering, downloading a 
 **Endpoint:** `POST /getsub` (3 calls)
 
 | Call | `start` | `stop` | Expected row count |
-|------|---------|--------|--------------------|
+| ---- | ------- | ------ | ------------------ |
 | 1    | 0       | 8      | 8                  |
 | 2    | 8       | 16     | 8                  |
 | 3    | 16      | 24     | 1                  |
 
 **Assert for each call:**
+
 - `count === 17` (total, not page size)
 - Rows returned match expected page slice
 - All videos have `downloadStatus === false`
@@ -488,6 +518,7 @@ Validates paginated sublist retrieval, `sortDownloaded` ordering, downloading a 
 **Endpoint:** `POST /download`
 
 **Request:**
+
 ```json
 {
   "urlList": ["https://www.youtube.com/watch?v=i0S9vlyQpig"],
@@ -504,6 +535,7 @@ Validates paginated sublist retrieval, `sortDownloaded` ordering, downloading a 
 **Endpoint:** `POST /list`
 
 **Request:**
+
 ```json
 {
   "urlList": ["https://www.youtube.com/watch?v=JWdTskHy9TE"],
@@ -514,6 +546,7 @@ Validates paginated sublist retrieval, `sortDownloaded` ordering, downloading a 
 ```
 
 **Assert:**
+
 - `status === "success"`
 - `items[0].type === "undownloaded"` — video is known to the DB (already listed from the playlist) but not yet downloaded
 
@@ -524,6 +557,7 @@ Validates paginated sublist retrieval, `sortDownloaded` ordering, downloading a 
 **Endpoint:** `POST /getsub` with `url: "None"`
 
 **Assert:**
+
 - `count === 1`
 - `rows[0].video_metadatum.videoId === "JWdTskHy9TE"`
 - `downloadStatus === false`
@@ -535,6 +569,7 @@ Validates paginated sublist retrieval, `sortDownloaded` ordering, downloading a 
 **Endpoint:** `POST /download`
 
 **Request:**
+
 ```json
 {
   "urlList": ["https://www.youtube.com/watch?v=JWdTskHy9TE"],
@@ -543,6 +578,7 @@ Validates paginated sublist retrieval, `sortDownloaded` ordering, downloading a 
 ```
 
 **Assert:**
+
 - `status === "success"`
 - `items[0].saveDirectory === "Screen recordings"` — the video inherits the save directory from its original playlist, not from "None".
 
@@ -553,6 +589,7 @@ Validates paginated sublist retrieval, `sortDownloaded` ordering, downloading a 
 **Endpoint:** `POST /getsub` with `url: "None"`
 
 **Assert:**
+
 - `downloadStatus === true`
 - `fileName === "JWdTskHy9TE.mkv"`
 - `thumbNailFile === "JWdTskHy9TE.webp"`
@@ -566,6 +603,7 @@ Validates paginated sublist retrieval, `sortDownloaded` ordering, downloading a 
 **Endpoint:** `POST /getsub` (Screen recordings, page `start=8, stop=16`)
 
 **Assert:**
+
 - The row for `JWdTskHy9TE` (position 15) shows `downloadStatus === true`, `fileName === "JWdTskHy9TE.mkv"`.
 - The row for `i0S9vlyQpig` (position 16) shows `downloadStatus === true`.
 - This confirms the shared `VideoMetadata` record reflects the download state in both playlist views.
@@ -577,6 +615,7 @@ Validates paginated sublist retrieval, `sortDownloaded` ordering, downloading a 
 **Endpoint:** `POST /getsub`
 
 **Request:**
+
 ```json
 {
   "start": 0,
@@ -588,6 +627,7 @@ Validates paginated sublist retrieval, `sortDownloaded` ordering, downloading a 
 ```
 
 **Assert:**
+
 - `rows[0].video_metadatum.downloadStatus === true`
 - `rows[1].video_metadatum.downloadStatus === true`
 - All subsequent rows have `downloadStatus === false`
@@ -606,6 +646,7 @@ the prune cron job moves downloaded orphans to "None" and destroys un-downloaded
 **Endpoint:** `POST /delplay`
 
 **Request:**
+
 ```json
 {
   "playListUrl": "https://www.youtube.com/playlist?list=PL4Oo6H2hGqj0xCU1eANC_L365_RFj2YOh",
@@ -624,6 +665,7 @@ the prune cron job moves downloaded orphans to "None" and destroys un-downloaded
 **Endpoint:** `POST /getsub` with `url: "None"`
 
 **Assert:**
+
 - `count === 1` — only the video already explicitly mapped to "None" is present.
 - The videos that were in "Screen recordings" mappings are not yet here.
 
@@ -639,6 +681,7 @@ the prune cron job moves downloaded orphans to "None" and destroys un-downloaded
 **Endpoint:** `POST /getsub` with `url: "None"`
 
 **Assert:**
+
 - `count === 2` — the two previously downloaded videos (`JWdTskHy9TE`, `i0S9vlyQpig`) have been moved to "None".
 - All other un-downloaded videos from the playlist have been removed from `VideoMetadata`.
 - The two rescued videos retain their `fileName`, `thumbNailFile`, and `saveDirectory` values.
@@ -657,6 +700,7 @@ the WebSocket notification behavior.
 **Endpoint:** `POST /list`
 
 **Request:**
+
 ```json
 {
   "urlList": ["https://www.youtube.com/watch?v=JWdTskHy9TE"],
@@ -667,6 +711,7 @@ the WebSocket notification behavior.
 ```
 
 **Assert:**
+
 - `items` array is empty (`[]`) — server recognizes the video is already in "None" and skips re-ingestion.
 - WebSocket event `listing-single-item-complete` is received with `alreadyExisted: true` and a `seekSubListTo` position.
 
@@ -677,6 +722,7 @@ the WebSocket notification behavior.
 **Endpoint:** `POST /list`
 
 **Request:**
+
 ```json
 {
   "urlList": ["https://www.youtube.com/watch?v=dPiPWbkebEo"],
@@ -687,6 +733,7 @@ the WebSocket notification behavior.
 ```
 
 **Assert:**
+
 - `items[0].reason === "URL not found in database"` — new video ingested.
 - `GET /getsub` for "None" shows `count === 3`, new video at position 3 with `downloadStatus === false`.
 
@@ -697,6 +744,7 @@ the WebSocket notification behavior.
 **Endpoint:** `POST /list` (same request as TC-6.2)
 
 **Assert:**
+
 - `items[0].type === "undownloaded"` — video is in DB but not downloaded; server acknowledges without creating a duplicate mapping.
 - WebSocket event `listing-single-item-complete` received with `alreadyExisted: true`.
 - `GET /getsub` for "None" still returns `count === 3` (no new entry added).
@@ -725,6 +773,7 @@ Validates that the re-index endpoint re-populates a playlist's video mappings af
 **Endpoint:** `POST /delplay`
 
 **Request:**
+
 ```json
 {
   "playListUrl": "https://www.youtube.com/playlist?list=PL4Oo6H2hGqj2TwKOK-_dXvPlzs1DktqFX",
@@ -735,6 +784,7 @@ Validates that the re-index endpoint re-populates a playlist's video mappings af
 ```
 
 **Assert:**
+
 - `status === "success"`
 - `GET /getsub` returns `count === 0` — all mappings removed.
 
@@ -745,11 +795,13 @@ Validates that the re-index endpoint re-populates a playlist's video mappings af
 **Endpoint:** `POST /reindexall`
 
 **Request:**
+
 ```json
 { "start": 0, "stop": 10, "chunkSize": 8 }
 ```
 
 **Assert:**
+
 - `status === "success"`
 - `queued === 1`, `total === 1`
 
@@ -763,6 +815,7 @@ Validates that the re-index endpoint re-populates a playlist's video mappings af
 **Endpoint:** `POST /getsub` (Engineering Stuff)
 
 **Assert:**
+
 - `count === 1` — video mapping is restored
 - Video metadata matches the original listing
 
@@ -779,6 +832,7 @@ Validates the `/getfile`, `/getfiles`, and `/refreshfile` token flow.
 **Endpoint:** `POST /getfiles`
 
 **Request:**
+
 ```json
 {
   "files": [
@@ -789,6 +843,7 @@ Validates the `/getfile`, `/getfiles`, and `/refreshfile` token flow.
 ```
 
 **Assert:**
+
 - `status === "success"`
 - The response `files` map contains one entry for `PexSJ31niEI.webp` (duplicates are de-duplicated server-side).
 - Each entry is a structured object containing both `signedUrlId` (a UUID string) and `expiry` (a future millisecond timestamp) — not a bare UUID string.
@@ -802,11 +857,13 @@ Validates the `/getfile`, `/getfiles`, and `/refreshfile` token flow.
 **Endpoint:** `POST /getfile`
 
 **Request:**
+
 ```json
 { "saveDirectory": "Dup Test", "fileName": "PexSJ31niEI.mkv" }
 ```
 
 **Assert:**
+
 - `status === "success"`
 - `signedUrlId` is a UUID string
 - `expiry` is a future timestamp (milliseconds since epoch)
@@ -818,6 +875,7 @@ Validates the `/getfile`, `/getfiles`, and `/refreshfile` token flow.
 **Endpoint:** `GET /getfile?fileId=<signedUrlId>`
 
 **Assert:**
+
 - HTTP response status is `200`
 - `Content-Type` header is `video/mp4` (or appropriate MIME type)
 - Response body is the raw binary file stream (non-empty)
@@ -829,11 +887,13 @@ Validates the `/getfile`, `/getfiles`, and `/refreshfile` token flow.
 **Endpoint:** `POST /refreshfile`
 
 **Request:**
+
 ```json
 { "fileId": "<signedUrlId from TC-8.2>" }
 ```
 
 **Assert:**
+
 - `status === "success"`
 - `expiry` is a new timestamp approximately 30 minutes later than the original, confirming the sliding window extension.
 
@@ -852,6 +912,7 @@ Tests the fix that allows individual duplicate entries in a playlist to be delet
 **Endpoint:** `POST /getsub`
 
 **Request:**
+
 ```json
 {
   "start": 0,
@@ -863,6 +924,7 @@ Tests the fix that allows individual duplicate entries in a playlist to be delet
 ```
 
 **Assert:**
+
 - `count === 2`
 - `rows[0].id` is a non-null UUID string — the `PlaylistVideoMapping` row ID for position 1
 - `rows[1].id` is a **different** non-null UUID string — the mapping row ID for position 2
@@ -875,6 +937,7 @@ Tests the fix that allows individual duplicate entries in a playlist to be delet
 **Endpoint:** `POST /delsub`
 
 **Request:**
+
 ```json
 {
   "playListUrl": "https://www.youtube.com/playlist?list=PL4Oo6H2hGqj0YkYoOLFmrbhsVWfAjCLZw",
@@ -886,6 +949,7 @@ Tests the fix that allows individual duplicate entries in a playlist to be delet
 ```
 
 **Assert:**
+
 - `deleted` array is non-empty
 - `failed` array is empty
 
@@ -896,6 +960,7 @@ Tests the fix that allows individual duplicate entries in a playlist to be delet
 **Endpoint:** `POST /getsub` (same request as TC-10.1)
 
 **Assert:**
+
 - `count === 1`
 - `rows[0].positionInPlaylist === 2` — position 1 was removed, position 2 survives untouched
 - `rows[0].video_metadatum.videoUrl === "https://www.youtube.com/watch?v=PexSJ31niEI"` — same video still present at position 2
@@ -915,6 +980,7 @@ Tests that a failed playlist bootstrap does not consume the next available `sort
 **Endpoint:** `POST /getplay`
 
 **Request:**
+
 ```json
 { "start": 0, "stop": 10, "sort": "1", "order": "1", "query": "" }
 ```
@@ -930,6 +996,7 @@ Submit a URL that fails during bootstrap — for example, a playlist whose first
 **Endpoint:** `POST /list`
 
 **Request:**
+
 ```json
 {
   "urlList": ["https://www.youtube.com/playlist?list=PLwLSw1_eDZl3mojgeqUHyMpTt3lQ6ogmJ"],
@@ -943,6 +1010,7 @@ Submit a URL that fails during bootstrap — for example, a playlist whose first
 > This URL's first 13 items are unavailable (Backend Bug #1, still open). The bootstrap is expected to fail or produce no playlist row. If Bug #1 is fixed before this test runs, substitute a different URL that reliably triggers a bootstrap failure.
 
 **Assert:**
+
 - `GET /getplay` returns `count === 0` — no playlist record was persisted.
 
 ---
@@ -952,6 +1020,7 @@ Submit a URL that fails during bootstrap — for example, a playlist whose first
 **Endpoint:** `POST /list`
 
 **Request:**
+
 ```json
 {
   "urlList": ["https://www.youtube.com/playlist?list=PL4Oo6H2hGqj2TwKOK-_dXvPlzs1DktqFX"],
@@ -970,11 +1039,13 @@ Submit a URL that fails during bootstrap — for example, a playlist whose first
 **Endpoint:** `POST /getplay`
 
 **Request:**
+
 ```json
 { "start": 0, "stop": 10, "sort": "1", "order": "1", "query": "" }
 ```
 
 **Assert:**
+
 - `count === 1`
 - `rows[0].sortOrder === 0`
 
@@ -987,6 +1058,7 @@ Submit a URL that fails during bootstrap — for example, a playlist whose first
 **Endpoint:** `POST /delplay`
 
 **Request:**
+
 ```json
 {
   "playListUrl": "https://www.youtube.com/playlist?list=PL4Oo6H2hGqj2TwKOK-_dXvPlzs1DktqFX",
@@ -1015,6 +1087,7 @@ A video that is already in `VideoMetadata` (indexed from a playlist) but not yet
 **Endpoint:** `POST /list`
 
 **Request:**
+
 ```json
 {
   "urlList": ["<videoUrl already in VideoMetadata but not mapped to None>"],
@@ -1025,6 +1098,7 @@ A video that is already in `VideoMetadata` (indexed from a playlist) but not yet
 ```
 
 **Assert:**
+
 - `status === "success"`
 - `items[0].type` is `"undownloaded"` or `"video"` — not `"undetermined"`. `"undetermined"` would indicate yt-dlp was invoked; a more specific type confirms the fast-path was taken.
 - If the video was already downloaded in another playlist, the WebSocket `listing-single-item-complete` event includes the source playlist title and position in "None".
@@ -1039,6 +1113,7 @@ Submit the same video URL to "None" a second time.
 **Endpoint:** `POST /list` (same request as TC-12.1)
 
 **Assert:**
+
 - The WebSocket `listing-single-item-complete` event includes:
   - `alreadyExisted: true`
   - `seekSubListTo` — the position in "None" the video currently occupies
@@ -1052,6 +1127,7 @@ Submit the same video URL to "None" a second time.
 Review responses from TC-12.1 and TC-12.2 (both REST and WebSocket payloads).
 
 **Assert:**
+
 - No string field starts with `/` followed by a filesystem path component (e.g., `/data/`, `/home/`, `/mnt/`).
 - `saveDirectory` values, where present, are relative names only (e.g., `"Screen recordings"`).
 
@@ -1068,6 +1144,7 @@ Tear down all test state created during the plan.
 **Endpoint:** `POST /delsub` (repeated per video)
 
 Delete orphaned test videos from "None" using appropriate flag combinations:
+
 - Videos with no files: `deleteVideoMappings: true, deleteVideosInDB: false`
 - Videos with downloaded files: `cleanUp: true, deleteVideoMappings: true, deleteVideosInDB: true`
 
@@ -1080,6 +1157,7 @@ Delete orphaned test videos from "None" using appropriate flag combinations:
 **Endpoint:** `POST /delplay`
 
 **Request (for each remaining playlist):**
+
 ```json
 {
   "playListUrl": "<url>",
