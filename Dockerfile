@@ -6,4 +6,4 @@ WORKDIR /app
 COPY . .
 
 # Environment variables will be passed via docker-compose
-CMD ["deno", "test", "--allow-net", "--allow-env", "--allow-read", "api_test_e2e.ts"]
+CMD ["deno", "test", "--allow-net", "--allow-env", "--allow-read", "--allow-write", "--junit-path=/app/reports/test_results.xml", "api_test_e2e.ts"]
