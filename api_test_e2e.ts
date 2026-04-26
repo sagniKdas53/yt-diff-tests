@@ -240,7 +240,7 @@ Deno.test(
     assertEquals(json.status, "success");
     assertExists(json.token);
     token = json.token;
-    console.log(token);
+    //console.log(token);
   }),
 );
 

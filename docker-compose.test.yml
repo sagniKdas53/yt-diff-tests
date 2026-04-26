@@ -87,6 +87,7 @@ services:
       context: .
       dockerfile: Dockerfile
     container_name: yt-diff-test-runner
+    user: "1000:1000"
     depends_on:
       yt-diff-test:
         condition: service_healthy
