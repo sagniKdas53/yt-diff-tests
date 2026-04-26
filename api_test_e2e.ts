@@ -29,6 +29,12 @@ const BIG_VIDEO_15_URL = "http://mock-tube:80/videos/video-big-15.mp4";
 const BIG_VIDEO_16_URL = "http://mock-tube:80/videos/video-big-16.mp4";
 const SINGLE_VIDEO_URL = "http://mock-tube:80/videos/video-single.mp4";
 
+const SMALL_SLEEP_DELAY = 5000; // Listing
+const MEDIUM_SLEEP_DELAY = 10000; // Large Lists
+const LARGE_SLEEP_DELAY = 15000; // Downloads + Listing + indexing waits
+const REINDEX_SLEEP_DELAY = 20000; // Re-index completion
+const PRUNE_SLEEP_DELAY = 65000; // Wait 65s for prune job (runs every minute)
+
 const testUser = {
   userName: `testuser_123`,
   password: "testpassword_123",
@@ -146,7 +152,7 @@ Deno.test("TC-1.1 — Add 'Dup Test' playlist", async () => {
   const json = await resp.json();
   assertEquals(json.status, "success");
   assertEquals(json.items[0].reason, "URL not found in database");
-  await sleep(15000); // Wait for processing
+  await sleep(SMALL_SLEEP_DELAY);
 });
 
 Deno.test("TC-1.2 — Playlist appears in listing", async () => {
@@ -201,7 +207,7 @@ Deno.test("TC-1.4 — Download the video", async () => {
   assertEquals(json.status, "success");
   assertEquals(json.items[0].url, DUP_VIDEO_URL);
   assertEquals(json.items[0].saveDirectory, "Dup Test");
-  await sleep(30000); // Wait for download
+  await sleep(LARGE_SLEEP_DELAY);
 });
 
 Deno.test("TC-1.5 — Both duplicate positions now show as downloaded", async () => {
@@ -263,7 +269,7 @@ Deno.test("TC-2.1 — Add 'Dup Test 2' playlist", async () => {
   });
   const json = await resp.json();
   assertEquals(json.status, "success");
-  await sleep(15000);
+  await sleep(SMALL_SLEEP_DELAY);
 });
 
 Deno.test("TC-2.2 — Both playlists appear in listing", async () => {
@@ -430,7 +436,7 @@ Deno.test("TC-3.1 — Add 'E7 Shorts', verify 2 videos are listed", async () => 
     }),
   });
   await listResp.json();
-  await sleep(15000);
+  await sleep(SMALL_SLEEP_DELAY);
 
   const resp = await apiRequest("/getsub", {
     method: "POST",
@@ -550,8 +556,7 @@ Deno.test("TC-4.1 — Add 'Screen recordings' and wait for full listing", async 
   });
   const json = await listResp.json();
   assertEquals(json.status, "success");
-  console.log("Waiting 90s for big playlist...");
-  await sleep(90000); // 17 items
+  await sleep(MEDIUM_SLEEP_DELAY); // 17 items
 });
 
 Deno.test("TC-4.2 — Paginated sublist retrieval (3 pages, 17 total)", async () => {
@@ -613,7 +618,7 @@ Deno.test("TC-4.3 — Download a video within the playlist", async () => {
   const json = await resp.json();
   assertEquals(json.status, "success");
   assertEquals(json.items[0].saveDirectory, "Screen recordings");
-  await sleep(25000); // wait for download
+  await sleep(LARGE_SLEEP_DELAY);
 });
 
 Deno.test("TC-4.4 — Add a video already in 'Screen recordings' to the 'None' playlist", async () => {
@@ -629,7 +634,7 @@ Deno.test("TC-4.4 — Add a video already in 'Screen recordings' to the 'None' p
   const json = await resp.json();
   assertEquals(json.status, "success");
   // Backend fast-path insert returns empty items array
-  await sleep(10000);
+  await sleep(MEDIUM_SLEEP_DELAY);
 });
 
 Deno.test("TC-4.5 — 'None' sublist shows the newly added video", async () => {
@@ -657,7 +662,7 @@ Deno.test("TC-4.6 — Download the video via the 'None' playlist context", async
   const json = await resp.json();
   assertEquals(json.status, "success");
   assertEquals(json.items[0].saveDirectory, "Screen recordings");
-  await sleep(15000); // wait for download
+  await sleep(LARGE_SLEEP_DELAY); // wait for download
 });
 
 Deno.test("TC-4.7 — 'None' sublist confirms download success", async () => {
@@ -763,7 +768,7 @@ Deno.test("TC-5.2 — 'None' sublist immediately after deletion (before prune jo
 
 Deno.test("TC-5.3 — 'None' sublist after prune job runs", async () => {
   console.log("Waiting 65s for prune job (runs every minute)...");
-  await sleep(65000);
+  await sleep(PRUNE_SLEEP_DELAY);
 
   const resp = await apiRequest("/getsub", {
     method: "POST",
@@ -806,7 +811,7 @@ Deno.test("TC-6.2 — Add a new single video to 'None'", async () => {
   });
   const json = await resp.json();
   assertEquals(json.items[0].reason, "URL not found in database");
-  await sleep(10000);
+  await sleep(MEDIUM_SLEEP_DELAY);
 
   const subResp = await apiRequest("/getsub", {
     method: "POST",
@@ -860,7 +865,7 @@ Deno.test("TC-7.1 — Add 'Engineering Stuff' playlist and verify it has 1 video
       sleep: true,
     }),
   })).text();
-  await sleep(15000);
+  await sleep(LARGE_SLEEP_DELAY);
 
   const resp = await apiRequest("/getsub", {
     method: "POST",
@@ -915,7 +920,7 @@ Deno.test("TC-7.3 — Trigger re-index for all playlists in range", async () => 
 });
 
 Deno.test("TC-7.4 — Sublist repopulated after re-index completes", async () => {
-  await sleep(20000); // wait for reindex
+  await sleep(REINDEX_SLEEP_DELAY); // wait for reindex
   const resp = await apiRequest("/getsub", {
     method: "POST",
     body: JSON.stringify({
@@ -992,7 +997,7 @@ Deno.test("Setup Suite 10: Restore Dup Test with duplicates", async () => {
       sleep: true,
     }),
   })).text();
-  await sleep(15000);
+  await sleep(LARGE_SLEEP_DELAY);
 });
 
 Deno.test("TC-10.1 — /getsub returns a mapping id for each row", async () => {
@@ -1093,7 +1098,7 @@ Deno.test("TC-11.2 — Trigger a failed playlist bootstrap", async () => {
       sleep: true,
     }),
   })).text();
-  await sleep(10000);
+  await sleep(MEDIUM_SLEEP_DELAY);
   const resp = await apiRequest("/getplay", {
     method: "POST",
     body: JSON.stringify({
@@ -1121,7 +1126,7 @@ Deno.test("TC-11.3 — Add a valid playlist immediately after the failure", asyn
   });
   const json = await resp.json();
   assertEquals(json.status, "success");
-  await sleep(15000);
+  await sleep(LARGE_SLEEP_DELAY);
 });
 
 Deno.test("TC-11.4 — Valid playlist gets sortOrder === 0 with no gap", async () => {
@@ -1178,7 +1183,7 @@ Deno.test("TC-12.1 — Adding a known-but-unmapped video to 'None' uses fast-pat
       sleep: true,
     }),
   })).text();
-  await sleep(15000);
+  await sleep(LARGE_SLEEP_DELAY);
 
   const resp = await apiRequest("/list", {
     method: "POST",
