@@ -68,7 +68,7 @@ services:
       - LOG_LEVELS=trace
       - NO_COLOR=true
       - CLEANUP_INTERVAL=* * * * *
-      - PRUNE_INTERVAL=* * * * *
+      - PRUNE_INTERVAL=*/15 * * * * *
       - UPDATE_SCHEDULED=* * * * *
       - CACHE_MAX_AGE=600 # 10 min to test the refresh file, don't set less than 5 mins as then the front-end will loop refresh the file
     tmpfs:
