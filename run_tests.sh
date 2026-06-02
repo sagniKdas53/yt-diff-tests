@@ -13,6 +13,18 @@ cleanup() {
 }
 trap cleanup EXIT
 
+echo "Generating mock-tube SSL certificates..."
+mkdir -p mock-tube/ssl
+# Generate CA
+openssl req -x509 -newkey rsa:4096 -keyout mock-tube/ssl/ca.key -out mock-tube/ssl/ca.crt -days 365 -nodes -subj "/CN=mock-tube-ca" 2>/dev/null
+# Generate Server CSR and Key
+openssl req -newkey rsa:2048 -keyout mock-tube/ssl/server.key -out mock-tube/ssl/server.csr -nodes -subj "/CN=mock-tube" 2>/dev/null
+# Sign Server Certificate
+openssl x509 -req -in mock-tube/ssl/server.csr -CA mock-tube/ssl/ca.crt -CAkey mock-tube/ssl/ca.key -CAcreateserial -out mock-tube/ssl/server.crt -days 365 -extfile <(printf "subjectAltName=DNS:mock-tube") 2>/dev/null
+
+echo "Creating combined CA bundle..."
+cat /etc/ssl/certs/ca-certificates.crt mock-tube/ssl/ca.crt > mock-tube/ssl/combined-ca.crt
+
 echo "Starting isolated test stack and running tests..."
 # --build: Always rebuild the test-runner if changes are made to Dockerfile.test or api_test.ts
 # --exit-code-from: Exit with the same code as the test-runner service

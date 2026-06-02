@@ -2,17 +2,17 @@
 <rss version="2.0">
 <channel>
   <title>Dup Test</title>
-  <link>http://mock-tube:80/playlists/dup-test-1.rss?list=1</link>
+  <link>https://mock-tube/playlists/dup-test-1.rss?list=1</link>
   <description>Mock for Dup Test</description>
   <item>
     <title>video-dup.mp4 - Dup Test</title>
-    <link>http://mock-tube:80/videos/video-dup.mp4</link>
-    <enclosure url="http://mock-tube:80/videos/video-dup.mp4" length="2237" type="video/mp4" />
+    <link>https://mock-tube/videos/video-dup.mp4</link>
+    <enclosure url="https://mock-tube/videos/video-dup.mp4" length="2237" type="video/mp4" />
   </item>
   <item>
     <title>video-dup.mp4 - Dup Test</title>
-    <link>http://mock-tube:80/videos/video-dup.mp4</link>
-    <enclosure url="http://mock-tube:80/videos/video-dup.mp4" length="2237" type="video/mp4" />
+    <link>https://mock-tube/videos/video-dup.mp4</link>
+    <enclosure url="https://mock-tube/videos/video-dup.mp4" length="2237" type="video/mp4" />
   </item>
 </channel>
 </rss>

@@ -19,15 +19,15 @@ def create_rss(name, title, videos):
         items += f"""
   <item>
     <title>{vid} - {title}</title>
-    <link>http://mock-tube:80/videos/{vid}</link>
-    <enclosure url="http://mock-tube:80/videos/{vid}" length="2237" type="video/mp4" />
+    <link>https://mock-tube/videos/{vid}</link>
+    <enclosure url="https://mock-tube/videos/{vid}" length="2237" type="video/mp4" />
   </item>"""
     
     content = f"""<?xml version="1.0" encoding="UTF-8" ?>
 <rss version="2.0">
 <channel>
   <title>{title}</title>
-  <link>http://mock-tube:80/playlists/{name}?list=1</link>
+  <link>https://mock-tube/playlists/{name}?list=1</link>
   <description>Mock for {title}</description>{items}
 </channel>
 </rss>"""

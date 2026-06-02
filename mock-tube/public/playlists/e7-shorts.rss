@@ -2,17 +2,17 @@
 <rss version="2.0">
 <channel>
   <title>E7 Shorts</title>
-  <link>http://mock-tube:80/playlists/e7-shorts.rss?list=1</link>
+  <link>https://mock-tube/playlists/e7-shorts.rss?list=1</link>
   <description>Mock for E7 Shorts</description>
   <item>
     <title>video-e7-1.mp4 - E7 Shorts</title>
-    <link>http://mock-tube:80/videos/video-e7-1.mp4</link>
-    <enclosure url="http://mock-tube:80/videos/video-e7-1.mp4" length="2237" type="video/mp4" />
+    <link>https://mock-tube/videos/video-e7-1.mp4</link>
+    <enclosure url="https://mock-tube/videos/video-e7-1.mp4" length="2237" type="video/mp4" />
   </item>
   <item>
     <title>video-e7-2.mp4 - E7 Shorts</title>
-    <link>http://mock-tube:80/videos/video-e7-2.mp4</link>
-    <enclosure url="http://mock-tube:80/videos/video-e7-2.mp4" length="2237" type="video/mp4" />
+    <link>https://mock-tube/videos/video-e7-2.mp4</link>
+    <enclosure url="https://mock-tube/videos/video-e7-2.mp4" length="2237" type="video/mp4" />
   </item>
 </channel>
 </rss>

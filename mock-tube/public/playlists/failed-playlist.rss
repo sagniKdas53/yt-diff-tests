@@ -2,7 +2,7 @@
 <rss version="2.0">
 <channel>
   <title>Failed Playlist</title>
-  <link>http://mock-tube:80/playlists/failed-playlist.rss?list=1</link>
+  <link>https://mock-tube/playlists/failed-playlist.rss?list=1</link>
   <description>Mock for Failed Playlist</description>
 </channel>
 </rss>

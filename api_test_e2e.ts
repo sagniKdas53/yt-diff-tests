@@ -64,24 +64,24 @@ const REPORTS_DIR = Deno.env.get("REPORTS_DIR") ||
   "/home/sagnik/Projects/docker-composes/yt-diff/tests/reports";
 
 const PUBLIC_DUP_TEST_PLAYLIST_URL =
-  "http://mock-tube:80/playlists/dup-test-1.rss?list=1";
+  "https://mock-tube/playlists/dup-test-1.rss?list=1";
 const PUBLIC_DUP_TEST_2_PLAYLIST_URL =
-  "http://mock-tube:80/playlists/dup-test-2.rss?list=1";
+  "https://mock-tube/playlists/dup-test-2.rss?list=1";
 const E7_SHORTS_PLAYLIST_URL =
-  "http://mock-tube:80/playlists/e7-shorts.rss?list=1";
+  "https://mock-tube/playlists/e7-shorts.rss?list=1";
 const PUBLIC_PLAYLIST_BIG_URL =
-  "http://mock-tube:80/playlists/big-playlist.rss?list=1";
+  "https://mock-tube/playlists/big-playlist.rss?list=1";
 const ENGINEERING_PLAYLIST_URL =
-  "http://mock-tube:80/playlists/engineering-playlist.rss?list=1";
+  "https://mock-tube/playlists/engineering-playlist.rss?list=1";
 const FAILED_PLAYLIST_URL =
-  "http://mock-tube:80/playlists/failed-playlist.rss?list=1";
+  "https://mock-tube/playlists/failed-playlist.rss?list=1";
 
-const DUP_VIDEO_URL = "http://mock-tube:80/videos/video-dup.mp4";
-const E7_VIDEO_1_URL = "http://mock-tube:80/videos/video-e7-1.mp4";
-const E7_VIDEO_2_URL = "http://mock-tube:80/videos/video-e7-2.mp4";
-const BIG_VIDEO_15_URL = "http://mock-tube:80/videos/video-big-15.mp4";
-const BIG_VIDEO_16_URL = "http://mock-tube:80/videos/video-big-16.mp4";
-const SINGLE_VIDEO_URL = "http://mock-tube:80/videos/video-single.mp4";
+const DUP_VIDEO_URL = "https://mock-tube/videos/video-dup.mp4";
+const E7_VIDEO_1_URL = "https://mock-tube/videos/video-e7-1.mp4";
+const E7_VIDEO_2_URL = "https://mock-tube/videos/video-e7-2.mp4";
+const BIG_VIDEO_15_URL = "https://mock-tube/videos/video-big-15.mp4";
+const BIG_VIDEO_16_URL = "https://mock-tube/videos/video-big-16.mp4";
+const SINGLE_VIDEO_URL = "https://mock-tube/videos/video-single.mp4";
 
 // Polling timeouts (upper bounds — waitFor returns as soon as condition is met)
 const POLL_INTERVAL = 1000;
