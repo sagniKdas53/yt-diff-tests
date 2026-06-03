@@ -1651,6 +1651,104 @@ Deno.test(
   ),
 );
 
+// Suite 13 — Regression: Playlist with Private/Deleted First Item
+const PRIVATE_FIRST_ITEM_PLAYLIST_URL =
+  "https://mock-tube/playlists/private-first-item.rss?list=1";
+
+Deno.test(
+  "TC-13.1 — Add playlist where first item is inaccessible (404)",
+  tracked(
+    "TC-13.1 — Add playlist where first item is inaccessible (404)",
+    async () => {
+      const resp = await apiRequest("/list", {
+        method: "POST",
+        body: JSON.stringify({
+          urlList: [PRIVATE_FIRST_ITEM_PLAYLIST_URL],
+          chunkSize: 9,
+          monitoringType: "N/A",
+          sleep: true,
+        }),
+      });
+      const json = await resp.json();
+      assertEquals(json.status, "success");
+      assertEquals(json.items[0].reason, "URL not found in database");
+      // The playlist should be created and items should be listed
+      // (skipping the inaccessible first item, but listing items 2 and 3)
+      await waitForSubCount(PRIVATE_FIRST_ITEM_PLAYLIST_URL, 2);
+    },
+  ),
+);
+
+Deno.test(
+  "TC-13.2 — Playlist appears in listing with a title (not a failure)",
+  tracked(
+    "TC-13.2 — Playlist appears in listing with a title (not a failure)",
+    async () => {
+      const resp = await apiRequest("/getplay", {
+        method: "POST",
+        body: JSON.stringify({
+          start: 0,
+          stop: 50,
+          sort: "1",
+          order: "1",
+          query: "",
+        }),
+      });
+      const json = await resp.json();
+      const playlist = json.rows.find(
+        (r: { playlistUrl: string }) =>
+          r.playlistUrl === PRIVATE_FIRST_ITEM_PLAYLIST_URL,
+      );
+      assertExists(playlist);
+      // Title should be derived from the second item's playlist_title
+      // or at minimum a URL-derived fallback — NOT empty or undefined
+      assertExists(playlist.title);
+      assertNotEquals(playlist.title, "");
+    },
+  ),
+);
+
+Deno.test(
+  "TC-13.3 — Sublist contains the 2 accessible videos",
+  tracked(
+    "TC-13.3 — Sublist contains the 2 accessible videos",
+    async () => {
+      const resp = await apiRequest("/getsub", {
+        method: "POST",
+        body: JSON.stringify({
+          start: 0,
+          stop: 8,
+          sortDownloaded: false,
+          query: "",
+          url: PRIVATE_FIRST_ITEM_PLAYLIST_URL,
+        }),
+      });
+      const json = await resp.json();
+      assertEquals(json.count, 2);
+    },
+  ),
+);
+
+Deno.test(
+  "TC-13.4 — Teardown: delete the private-first-item playlist",
+  tracked(
+    "TC-13.4 — Teardown: delete the private-first-item playlist",
+    async () => {
+      const resp = await apiRequest("/delplay", {
+        method: "POST",
+        body: JSON.stringify({
+          playListUrl: PRIVATE_FIRST_ITEM_PLAYLIST_URL,
+          deleteAllVideosInPlaylist: true,
+          deletePlaylist: true,
+          cleanUp: false,
+        }),
+      });
+      const json = await resp.json();
+      assertEquals(json.status, "success");
+    },
+  ),
+);
+
 // Suite 9 — Cleanup
 Deno.test(
   "TC-9.1 — Remove remaining videos from 'None' playlist",

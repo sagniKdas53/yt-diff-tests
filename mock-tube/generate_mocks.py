@@ -11,11 +11,14 @@ def create_video(name):
         print(f"Creating {name}...")
         subprocess.run(["ffmpeg", "-f", "lavfi", "-i", "color=c=black:s=16x16:d=1", "-c:v", "libx264", "-tune", "stillimage", "-pix_fmt", "yuv420p", path, "-y"], capture_output=True)
 
-def create_rss(name, title, videos):
+def create_rss(name, title, videos, skip_videos=None):
+    if skip_videos is None:
+        skip_videos = set()
     path = f"{base_dir}/playlists/{name}"
     items = ""
     for i, vid in enumerate(videos):
-        create_video(vid)
+        if vid not in skip_videos:
+            create_video(vid)
         items += f"""
   <item>
     <title>{vid} - {title}</title>
@@ -58,5 +61,10 @@ create_video("video-single.mp4")
 # Other potentially needed videos
 create_video("video-public.mp4")
 create_video("video-unlisted.mp4")
+
+# Suite 13: Private First Item (first video is 404, simulates private/deleted)
+# NOTE: video-nonexistent.mp4 is intentionally NOT created — its 404 response
+# is what causes yt-dlp to fail on it, simulating a private/deleted video.
+create_rss("private-first-item.rss", "Private First Item Playlist", ["video-nonexistent.mp4", "video-public.mp4", "video-unlisted.mp4"], skip_videos={"video-nonexistent.mp4"})
 
 print("Done.")

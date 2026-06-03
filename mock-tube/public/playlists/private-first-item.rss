@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<rss version="2.0">
+<channel>
+  <title>Private First Item Playlist</title>
+  <link>https://mock-tube/playlists/private-first-item.rss?list=1</link>
+  <description>Mock for Private First Item Playlist</description>
+  <item>
+    <title>video-nonexistent.mp4 - Private First Item Playlist</title>
+    <link>https://mock-tube/videos/video-nonexistent.mp4</link>
+    <enclosure url="https://mock-tube/videos/video-nonexistent.mp4" length="2237" type="video/mp4" />
+  </item>
+  <item>
+    <title>video-public.mp4 - Private First Item Playlist</title>
+    <link>https://mock-tube/videos/video-public.mp4</link>
+    <enclosure url="https://mock-tube/videos/video-public.mp4" length="2237" type="video/mp4" />
+  </item>
+  <item>
+    <title>video-unlisted.mp4 - Private First Item Playlist</title>
+    <link>https://mock-tube/videos/video-unlisted.mp4</link>
+    <enclosure url="https://mock-tube/videos/video-unlisted.mp4" length="2237" type="video/mp4" />
+  </item>
+</channel>
+</rss>
