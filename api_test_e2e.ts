@@ -89,7 +89,7 @@ const DEFAULT_TIMEOUT = 15000;
 const PRUNE_TIMEOUT = 30000; // Prune cron runs every 15s in test env
 
 const testUser = {
-  userName: `testuser_123`,
+  username: `testuser_123`,
   password: "testpassword_123",
 };
 

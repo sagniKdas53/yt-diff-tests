@@ -4,6 +4,6 @@
     "socket.io-client": "https://cdn.socket.io/4.8.3/socket.io.esm.min.js"
   },
   "tasks": {
-    "test": "deno test --allow-all api_test.ts"
+    "test": "deno test --allow-all api_test_e2e.ts"
   }
 }
