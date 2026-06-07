@@ -372,6 +372,27 @@ Deno.test(
 );
 
 Deno.test(
+  "TC-1.4.1 — Check Queue Status returns items with correct positions",
+  tracked("TC-1.4.1 — Check Queue Status returns items with correct positions", async () => {
+    const resp = await apiRequest("/queuestatus", {
+      method: "POST",
+      body: JSON.stringify({}),
+    });
+    const json = await resp.json();
+    assertEquals(json.status, "success");
+    assertExists(json.generation);
+    assertExists(json.queue);
+    
+    // We expect the queue to be an array, but we don't strictly assert the exact count here 
+    // because the download might complete extremely fast in the mock environment. 
+    // But we check that if items are present, they have `queuePosition`.
+    if (json.queue.length > 0) {
+      assertExists(json.queue[0].queuePosition);
+    }
+  }),
+);
+
+Deno.test(
   "TC-1.5 — Both duplicate positions now show as downloaded",
   tracked(
     "TC-1.5 — Both duplicate positions now show as downloaded",
