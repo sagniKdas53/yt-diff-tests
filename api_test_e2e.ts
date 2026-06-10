@@ -1042,6 +1042,7 @@ Deno.test(
       const json = await resp.json();
       assertEquals(json.rows[0].video_metadatum.downloadStatus, true);
       assertEquals(json.rows[1].video_metadatum.downloadStatus, true);
+      assertEquals(json.rows[0].positionInPlaylist < json.rows[1].positionInPlaylist, true);
       assertEquals(json.rows[2].video_metadatum.downloadStatus, false);
     },
   ),
