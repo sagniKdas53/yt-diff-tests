@@ -30,9 +30,15 @@ services:
       - ./mock-tube/public:/usr/share/nginx/html:ro
       - ./mock-tube/nginx.conf:/etc/nginx/nginx.conf:ro
       - ./mock-tube/ssl:/etc/nginx/ssl:ro
-    ports:
-      - "8080:80"
-      - "8443:443"
+    # Not published to the host: yt-diff-test reaches this over the compose
+    # network as https://mock-tube/, and binding 8080 collides with whatever
+    # else is already running on the machine.
+    # ports:
+    #   - "8080:80"
+    #   - "8443:443"
+    expose:
+      - 80
+      - 443
     healthcheck:
       test: [ "CMD", "curl", "-f", "http://localhost/" ]
       interval: 5s
