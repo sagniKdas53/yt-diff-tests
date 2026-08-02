@@ -58,6 +58,7 @@ function tracked(name: string, fn: () => Promise<void>): () => Promise<void> {
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { assertEquals, assertExists, assertNotEquals } from "std/assert/mod.ts";
+import { io } from "socket.io-client";
 
 const BASE_URL = Deno.env.get("API_BASE_URL") || "http://localhost:8888/ytdiff";
 const REPORTS_DIR = Deno.env.get("REPORTS_DIR") ||
@@ -197,6 +198,88 @@ async function apiRequest(endpoint: string, options: RequestInit = {}) {
   }
 
   return response;
+}
+
+// ─── Socket event recorder ──────────────────────────────────────────────────
+interface RecordedEvent {
+  event: string;
+  payload: Record<string, unknown>;
+}
+
+interface SocketRecorder {
+  received: RecordedEvent[];
+  /** Resolves with the first payload for `event`, including ones already seen. */
+  waitForEvent(
+    event: string,
+    timeoutMs?: number,
+  ): Promise<Record<string, unknown>>;
+  payloadsFor(event: string): Record<string, unknown>[];
+  close(): void;
+}
+
+/**
+ * Connects a socket.io client the way the web UI does and records the named
+ * events. Used to assert on progress signalling that never touches the HTTP
+ * response, e.g. batch re-index lifecycle.
+ */
+async function recordSocketEvents(
+  eventNames: string[],
+): Promise<SocketRecorder> {
+  const parsed = new URL(BASE_URL);
+  const socket = io(parsed.origin, {
+    path: `${parsed.pathname.replace(/\/$/, "")}/socket.io`,
+    auth: { token },
+    forceNew: true,
+    // The import map resolves socket.io-client to the browser bundle, whose
+    // default polling transport needs XMLHttpRequest. Deno has no XHR (it fails
+    // with "xhr poll error" before it can upgrade), but it does have a native
+    // WebSocket, so skip polling. The browser client still negotiates normally.
+    transports: ["websocket"],
+  });
+
+  const received: RecordedEvent[] = [];
+  for (const name of eventNames) {
+    socket.on(name, (payload: Record<string, unknown>) => {
+      received.push({ event: name, payload: payload ?? {} });
+    });
+  }
+
+  await new Promise<void>((resolve, reject) => {
+    const timer = setTimeout(
+      () => reject(new Error("socket did not connect in time")),
+      15000,
+    );
+    socket.on("init", (data: { id: string }) => {
+      clearTimeout(timer);
+      // The server only counts a client once it acknowledges, but decrements on
+      // every disconnect — acknowledge so the test does not skew maxClients.
+      socket.emit("acknowledge", { data: "Connected", id: data.id });
+      resolve();
+    });
+    socket.on("connect_error", (err: Error) => {
+      clearTimeout(timer);
+      reject(err);
+    });
+  });
+
+  return {
+    received,
+    payloadsFor(event: string) {
+      return received.filter((r) => r.event === event).map((r) => r.payload);
+    },
+    async waitForEvent(event: string, timeoutMs: number = DEFAULT_TIMEOUT) {
+      const deadline = Date.now() + timeoutMs;
+      while (Date.now() < deadline) {
+        const hit = received.find((r) => r.event === event);
+        if (hit) return hit.payload;
+        await sleep(POLL_INTERVAL);
+      }
+      throw new Error(`Timed out waiting for socket event "${event}"`);
+    },
+    close() {
+      socket.close();
+    },
+  };
 }
 
 // SETUP: Auth
@@ -1346,6 +1429,9 @@ Deno.test(
     assertEquals(json.status, "success");
     assertEquals(json.queued, 1);
     assertEquals(json.total, 1);
+    // Correlation id the socket lifecycle events are stamped with.
+    assertExists(json.batchId);
+    assertNotEquals(json.batchId, "");
   }),
 );
 
@@ -1366,6 +1452,85 @@ Deno.test(
     const json = await resp.json();
     assertEquals(json.count, 1);
   }),
+);
+Deno.test(
+  "TC-7.5 — Batch re-index emits per-playlist progress over the socket",
+  tracked(
+    "TC-7.5 — Batch re-index emits per-playlist progress over the socket",
+    async () => {
+      const recorder = await recordSocketEvents([
+        "reindex-batch-started",
+        "reindex-batch-complete",
+        "reindex-batch-failed",
+        "listing-started",
+        "listing-playlist-complete",
+        "listing-playlist-chunk-complete",
+        "listing-error",
+      ]);
+
+      try {
+        const resp = await apiRequest("/reindexall", {
+          method: "POST",
+          body: JSON.stringify({ start: 0, stop: 10, chunkSize: 8 }),
+        });
+        const json = await resp.json();
+        assertEquals(json.status, "success");
+        const batchId = json.batchId;
+
+        // Acknowledgement event, carrying the same batch id as the response.
+        const started = await recorder.waitForEvent("reindex-batch-started");
+        assertEquals(started.batchId, batchId);
+        assertEquals(started.queued, json.queued);
+
+        // Completion event, with the final tally.
+        const done = await recorder.waitForEvent("reindex-batch-complete");
+        assertEquals(done.batchId, batchId);
+        assertEquals(done.total, json.queued);
+        assertEquals(done.completed, json.queued);
+        assertEquals(done.failed, 0);
+        assertExists(done.durationMs);
+
+        // Per-playlist progress must have flowed despite the batch running on
+        // the scheduled-update code path.
+        assertNotEquals(recorder.payloadsFor("listing-started").length, 0);
+        const completions = recorder.payloadsFor("listing-playlist-complete");
+        assertEquals(completions.length, json.queued);
+        assertEquals(completions[0].url, ENGINEERING_PLAYLIST_URL);
+
+        // Per-chunk events stay suppressed: a batch is per-playlist only.
+        assertEquals(
+          recorder.payloadsFor("listing-playlist-chunk-complete").length,
+          0,
+        );
+        assertEquals(recorder.payloadsFor("reindex-batch-failed").length, 0);
+      } finally {
+        recorder.close();
+      }
+    },
+  ),
+);
+
+Deno.test(
+  "TC-7.7 — /list reports the listing backlog ahead of a submission",
+  tracked(
+    "TC-7.7 — /list reports the listing backlog ahead of a submission",
+    async () => {
+      const resp = await apiRequest("/list", {
+        method: "POST",
+        body: JSON.stringify({
+          urlList: [ENGINEERING_PLAYLIST_URL],
+          chunkSize: 9,
+          monitoringType: "N/A",
+          sleep: true,
+        }),
+      });
+      const json = await resp.json();
+      assertEquals(json.status, "success");
+      // Present and numeric so the UI can decide whether to warn; the exact
+      // depth depends on what else is in flight.
+      assertEquals(typeof json.queueDepthBefore, "number");
+    },
+  ),
 );
 
 // Suite 10 — Regression: Per-Mapping Delete for Duplicate Playlist Entries
