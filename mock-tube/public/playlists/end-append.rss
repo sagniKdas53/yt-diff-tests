@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<rss version="2.0">
+<channel>
+  <title>Shift Endcast</title>
+  <link>https://mock-tube/playlists/end-append.rss?list=1</link>
+  <description>Mock for Shift Endcast</description>
+  <item>
+    <title>video-shift-e01.mp4 - Shift Endcast</title>
+    <link>https://mock-tube/videos/video-shift-e01.mp4</link>
+    <enclosure url="https://mock-tube/videos/video-shift-e01.mp4" length="2237" type="video/mp4" />
+  </item>
+  <item>
+    <title>video-shift-e02.mp4 - Shift Endcast</title>
+    <link>https://mock-tube/videos/video-shift-e02.mp4</link>
+    <enclosure url="https://mock-tube/videos/video-shift-e02.mp4" length="2237" type="video/mp4" />
+  </item>
+  <item>
+    <title>video-shift-e03.mp4 - Shift Endcast</title>
+    <link>https://mock-tube/videos/video-shift-e03.mp4</link>
+    <enclosure url="https://mock-tube/videos/video-shift-e03.mp4" length="2237" type="video/mp4" />
+  </item>
+  <item>
+    <title>video-shift-e04.mp4 - Shift Endcast</title>
+    <link>https://mock-tube/videos/video-shift-e04.mp4</link>
+    <enclosure url="https://mock-tube/videos/video-shift-e04.mp4" length="2237" type="video/mp4" />
+  </item>
+  <item>
+    <title>video-shift-e05.mp4 - Shift Endcast</title>
+    <link>https://mock-tube/videos/video-shift-e05.mp4</link>
+    <enclosure url="https://mock-tube/videos/video-shift-e05.mp4" length="2237" type="video/mp4" />
+  </item>
+  <item>
+    <title>video-shift-e06.mp4 - Shift Endcast</title>
+    <link>https://mock-tube/videos/video-shift-e06.mp4</link>
+    <enclosure url="https://mock-tube/videos/video-shift-e06.mp4" length="2237" type="video/mp4" />
+  </item>
+  <item>
+    <title>video-shift-e07.mp4 - Shift Endcast</title>
+    <link>https://mock-tube/videos/video-shift-e07.mp4</link>
+    <enclosure url="https://mock-tube/videos/video-shift-e07.mp4" length="2237" type="video/mp4" />
+  </item>
+  <item>
+    <title>video-shift-e08.mp4 - Shift Endcast</title>
+    <link>https://mock-tube/videos/video-shift-e08.mp4</link>
+    <enclosure url="https://mock-tube/videos/video-shift-e08.mp4" length="2237" type="video/mp4" />
+  </item>
+  <item>
+    <title>video-shift-e09.mp4 - Shift Endcast</title>
+    <link>https://mock-tube/videos/video-shift-e09.mp4</link>
+    <enclosure url="https://mock-tube/videos/video-shift-e09.mp4" length="2237" type="video/mp4" />
+  </item>
+  <item>
+    <title>video-shift-e10.mp4 - Shift Endcast</title>
+    <link>https://mock-tube/videos/video-shift-e10.mp4</link>
+    <enclosure url="https://mock-tube/videos/video-shift-e10.mp4" length="2237" type="video/mp4" />
+  </item>
+  <item>
+    <title>video-shift-e11.mp4 - Shift Endcast</title>
+    <link>https://mock-tube/videos/video-shift-e11.mp4</link>
+    <enclosure url="https://mock-tube/videos/video-shift-e11.mp4" length="2237" type="video/mp4" />
+  </item>
+</channel>
+</rss>

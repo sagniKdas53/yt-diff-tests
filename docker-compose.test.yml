@@ -112,5 +112,12 @@ services:
     environment:
       - API_BASE_URL=http://yt-diff-test:8888/ytdiff
       - REPORTS_DIR=/app/reports
+      # Suite 14 rewrites mock-tube RSS files mid-run to simulate a playlist
+      # shifting under the updater (prepend for Start, append/delete for End),
+      # then restores them. The nginx container keeps its read-only mount;
+      # static files are re-read from disk per request, so no restart is
+      # needed. MOCK_TUBE_DIR must match the test's fallback.
+      - MOCK_TUBE_DIR=/mock-tube
     volumes:
       - ./reports:/app/reports
+      - ./mock-tube/public:/mock-tube:rw

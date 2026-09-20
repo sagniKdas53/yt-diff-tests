@@ -456,23 +456,26 @@ Deno.test(
 
 Deno.test(
   "TC-1.4.1 — Check Queue Status returns items with correct positions",
-  tracked("TC-1.4.1 — Check Queue Status returns items with correct positions", async () => {
-    const resp = await apiRequest("/queuestatus", {
-      method: "POST",
-      body: JSON.stringify({}),
-    });
-    const json = await resp.json();
-    assertEquals(json.status, "success");
-    assertExists(json.generation);
-    assertExists(json.queue);
-    
-    // We expect the queue to be an array, but we don't strictly assert the exact count here 
-    // because the download might complete extremely fast in the mock environment. 
-    // But we check that if items are present, they have `queuePosition`.
-    if (json.queue.length > 0) {
-      assertExists(json.queue[0].queuePosition);
-    }
-  }),
+  tracked(
+    "TC-1.4.1 — Check Queue Status returns items with correct positions",
+    async () => {
+      const resp = await apiRequest("/queuestatus", {
+        method: "POST",
+        body: JSON.stringify({}),
+      });
+      const json = await resp.json();
+      assertEquals(json.status, "success");
+      assertExists(json.generation);
+      assertExists(json.queue);
+
+      // We expect the queue to be an array, but we don't strictly assert the exact count here
+      // because the download might complete extremely fast in the mock environment.
+      // But we check that if items are present, they have `queuePosition`.
+      if (json.queue.length > 0) {
+        assertExists(json.queue[0].queuePosition);
+      }
+    },
+  ),
 );
 
 Deno.test(
@@ -1125,7 +1128,10 @@ Deno.test(
       const json = await resp.json();
       assertEquals(json.rows[0].video_metadatum.downloadStatus, true);
       assertEquals(json.rows[1].video_metadatum.downloadStatus, true);
-      assertEquals(json.rows[0].positionInPlaylist < json.rows[1].positionInPlaylist, true);
+      assertEquals(
+        json.rows[0].positionInPlaylist < json.rows[1].positionInPlaylist,
+        true,
+      );
       assertEquals(json.rows[2].video_metadatum.downloadStatus, false);
     },
   ),
@@ -1932,6 +1938,446 @@ Deno.test(
       });
       const json = await resp.json();
       assertEquals(json.status, "success");
+    },
+  ),
+);
+
+// Suite 14 — Start/End Incremental Shift Updates (Backend Bug: duplicate
+// position rows after watch-mode updates)
+//
+// A playlist that gains videos at the top (Start) shifts every existing
+// position down; one that appends at the bottom (End) grows the tail. The
+// updater used to key rows on videoUrl|position and re-create shifted rows
+// instead of moving them, doubling every position. These tests mutate the
+// mock-tube RSS mid-run — the only way to observe the same playlist URL
+// shifting under the updater — then restore the committed v1 afterwards.
+const START_SHIFT_PLAYLIST_URL =
+  "https://mock-tube/playlists/start-shift.rss?list=1";
+const START_SHIFT_BIG_PLAYLIST_URL =
+  "https://mock-tube/playlists/start-shift-big.rss?list=1";
+const END_APPEND_PLAYLIST_URL =
+  "https://mock-tube/playlists/end-append.rss?list=1";
+
+// Writable mock-tube checkout inside the test-runner container (see the
+// mock-tube volume in docker-compose.test.yml). Falls back to /mock-tube.
+const MOCK_TUBE_DIR = Deno.env.get("MOCK_TUBE_DIR") || "/mock-tube";
+
+// Generous ceiling: shift updates walk more chunks than the steady-state
+// listings elsewhere in this file.
+const SHIFT_TIMEOUT = 60000;
+
+const shiftVideoUrl = (name: string) => `https://mock-tube/videos/${name}`;
+const pad2 = (n: number) => String(n).padStart(2, "0");
+const SHIFT_S_BASE = Array.from(
+  { length: 10 },
+  (_v, i) => shiftVideoUrl(`video-shift-s${pad2(i + 1)}.mp4`),
+);
+const SHIFT_N_SMALL = Array.from(
+  { length: 3 },
+  (_v, i) => shiftVideoUrl(`video-shift-n${pad2(i + 1)}.mp4`),
+);
+const SHIFT_M_BIG = Array.from(
+  { length: 12 },
+  (_v, i) => shiftVideoUrl(`video-shift-m${pad2(i + 1)}.mp4`),
+);
+const SHIFT_E_BASE = Array.from(
+  { length: 11 },
+  (_v, i) => shiftVideoUrl(`video-shift-e${pad2(i + 1)}.mp4`),
+);
+const SHIFT_E_APPENDED = Array.from(
+  { length: 10 },
+  (_v, i) => shiftVideoUrl(`video-shift-e${pad2(i + 12)}.mp4`),
+);
+
+/** Renders an RSS feed byte-compatible with generate_mocks.py output. */
+function shiftRssXml(
+  title: string,
+  feedName: string,
+  videos: string[],
+): string {
+  const items = videos.map((videoUrl) => {
+    const file = videoUrl.split("/").at(-1) ?? videoUrl;
+    return `
+  <item>
+    <title>${file} - ${title}</title>
+    <link>${videoUrl}</link>
+    <enclosure url="${videoUrl}" length="2237" type="video/mp4" />
+  </item>`;
+  }).join("");
+  return `<?xml version="1.0" encoding="UTF-8" ?>
+<rss version="2.0">
+<channel>
+  <title>${title}</title>
+  <link>https://mock-tube/playlists/${feedName}?list=1</link>
+  <description>Mock for ${title}</description>${items}
+</channel>
+</rss>`;
+}
+
+async function readShiftRss(feedName: string): Promise<string> {
+  try {
+    return await Deno.readTextFile(`${MOCK_TUBE_DIR}/playlists/${feedName}`);
+  } catch {
+    throw new Error(
+      `Cannot read ${MOCK_TUBE_DIR}/playlists/${feedName}: run the E2E suite via docker compose (test-runner needs the mock-tube volume)`,
+    );
+  }
+}
+
+async function writeShiftRss(feedName: string, content: string): Promise<void> {
+  await Deno.writeTextFile(`${MOCK_TUBE_DIR}/playlists/${feedName}`, content);
+}
+
+async function getSubAllRows(playlistUrl: string) {
+  const resp = await apiRequest("/getsub", {
+    method: "POST",
+    body: JSON.stringify({
+      start: 0,
+      stop: 60,
+      sortDownloaded: false,
+      query: "",
+      url: playlistUrl,
+    }),
+  });
+  return await resp.json();
+}
+
+/** Polls until the given video sits at the expected position in the playlist. */
+async function waitForVideoPosition(
+  playlistUrl: string,
+  videoUrl: string,
+  position: number,
+  timeoutMs: number = SHIFT_TIMEOUT,
+): Promise<void> {
+  await waitFor(async () => {
+    const json = await getSubAllRows(playlistUrl);
+    return json.rows.some(
+      (
+        r: {
+          positionInPlaylist: number;
+          video_metadatum: { videoUrl: string };
+        },
+      ) =>
+        r.positionInPlaylist === position &&
+        r.video_metadatum.videoUrl === videoUrl,
+    );
+  }, timeoutMs);
+}
+
+/**
+ * The core regression assertion for the shift-duplication bug: positions
+ * cover exactly 1..N in order, each position holds the expected video, and
+ * no (videoUrl, position) pair appears twice. The pre-fix code produced two
+ * rows per position here (e.g. count 203 with pairs at 1..8).
+ */
+function assertExactPlaylistOrder(
+  json: {
+    count: number;
+    rows: Array<
+      { positionInPlaylist: number; video_metadatum: { videoUrl: string } }
+    >;
+  },
+  expectedVideoUrls: string[],
+): void {
+  assertEquals(json.count, expectedVideoUrls.length);
+  assertEquals(json.rows.length, expectedVideoUrls.length);
+  const seenPairs = new Set<string>();
+  json.rows.forEach((row, i) => {
+    assertEquals(row.positionInPlaylist, i + 1);
+    assertEquals(row.video_metadatum.videoUrl, expectedVideoUrls[i]);
+    const pair = `${row.video_metadatum.videoUrl}|${row.positionInPlaylist}`;
+    assertEquals(seenPairs.has(pair), false, `duplicate mapping row: ${pair}`);
+    seenPairs.add(pair);
+  });
+}
+
+/** Re-lists an existing playlist under a new watch mode; asserts the update path was taken. */
+async function relistWithMonitoring(
+  playlistUrl: string,
+  monitoringType: string,
+) {
+  const resp = await apiRequest("/list", {
+    method: "POST",
+    body: JSON.stringify({
+      urlList: [playlistUrl],
+      chunkSize: 10,
+      monitoringType,
+      sleep: true,
+    }),
+  });
+  const json = await resp.json();
+  assertEquals(json.status, "success");
+  assertEquals(json.items[0].reason, "Monitoring type changed");
+}
+
+async function delplayFullCleanup(playListUrl: string): Promise<void> {
+  const resp = await apiRequest("/delplay", {
+    method: "POST",
+    body: JSON.stringify({
+      playListUrl,
+      deleteAllVideosInPlaylist: true,
+      deletePlaylist: true,
+      cleanUp: false,
+    }),
+  });
+  const json = await resp.json();
+  assertEquals(json.status, "success");
+}
+
+Deno.test(
+  "TC-14.1 — Add 'Shift Startcast' playlist (10 videos, positions 1..10)",
+  tracked(
+    "TC-14.1 — Add 'Shift Startcast' playlist (10 videos, positions 1..10)",
+    async () => {
+      await (await apiRequest("/list", {
+        method: "POST",
+        body: JSON.stringify({
+          urlList: [START_SHIFT_PLAYLIST_URL],
+          chunkSize: 10,
+          monitoringType: "N/A",
+          sleep: true,
+        }),
+      })).text();
+      await waitForSubCount(START_SHIFT_PLAYLIST_URL, 10, SHIFT_TIMEOUT);
+      assertExactPlaylistOrder(
+        await getSubAllRows(START_SHIFT_PLAYLIST_URL),
+        SHIFT_S_BASE,
+      );
+    },
+  ),
+);
+
+Deno.test(
+  "TC-14.2 — Start update after prepending 3 shifts rows without duplicating",
+  tracked(
+    "TC-14.2 — Start update after prepending 3 shifts rows without duplicating",
+    async () => {
+      const original = await readShiftRss("start-shift.rss");
+      try {
+        await writeShiftRss(
+          "start-shift.rss",
+          shiftRssXml("Shift Startcast", "start-shift.rss", [
+            ...SHIFT_N_SMALL,
+            ...SHIFT_S_BASE,
+          ]),
+        );
+        await relistWithMonitoring(START_SHIFT_PLAYLIST_URL, "Start");
+        await waitForSubCount(START_SHIFT_PLAYLIST_URL, 13, SHIFT_TIMEOUT);
+        // The count settles before the tail renumber lands, so wait on the
+        // last shifted row (only the final stage sets it) before asserting.
+        await waitForVideoPosition(
+          START_SHIFT_PLAYLIST_URL,
+          SHIFT_S_BASE[SHIFT_S_BASE.length - 1],
+          13,
+        );
+        assertExactPlaylistOrder(
+          await getSubAllRows(START_SHIFT_PLAYLIST_URL),
+          [...SHIFT_N_SMALL, ...SHIFT_S_BASE],
+        );
+      } finally {
+        await writeShiftRss("start-shift.rss", original);
+      }
+      await delplayFullCleanup(START_SHIFT_PLAYLIST_URL);
+    },
+  ),
+);
+
+Deno.test(
+  "TC-14.3 — Add 'Shift Startcast Big' playlist (10 videos)",
+  tracked(
+    "TC-14.3 — Add 'Shift Startcast Big' playlist (10 videos)",
+    async () => {
+      await (await apiRequest("/list", {
+        method: "POST",
+        body: JSON.stringify({
+          urlList: [START_SHIFT_BIG_PLAYLIST_URL],
+          chunkSize: 10,
+          monitoringType: "N/A",
+          sleep: true,
+        }),
+      })).text();
+      await waitForSubCount(START_SHIFT_BIG_PLAYLIST_URL, 10, SHIFT_TIMEOUT);
+      assertExactPlaylistOrder(
+        await getSubAllRows(START_SHIFT_BIG_PLAYLIST_URL),
+        SHIFT_S_BASE,
+      );
+    },
+  ),
+);
+
+Deno.test(
+  "TC-14.4 — Start update prepending 12 (more than one chunk) keeps 22 unique rows",
+  tracked(
+    "TC-14.4 — Start update prepending 12 (more than one chunk) keeps 22 unique rows",
+    async () => {
+      const original = await readShiftRss("start-shift-big.rss");
+      try {
+        // 12 new videos with chunk size 10: the first chunk is entirely new
+        // and carries no reference to the old head, so the shift is only
+        // learnable from the second chunk onward.
+        await writeShiftRss(
+          "start-shift-big.rss",
+          shiftRssXml("Shift Startcast Big", "start-shift-big.rss", [
+            ...SHIFT_M_BIG,
+            ...SHIFT_S_BASE,
+          ]),
+        );
+        await relistWithMonitoring(START_SHIFT_BIG_PLAYLIST_URL, "Start");
+        await waitForSubCount(START_SHIFT_BIG_PLAYLIST_URL, 22, SHIFT_TIMEOUT);
+        await waitForVideoPosition(
+          START_SHIFT_BIG_PLAYLIST_URL,
+          SHIFT_S_BASE[SHIFT_S_BASE.length - 1],
+          22,
+        );
+        assertExactPlaylistOrder(
+          await getSubAllRows(START_SHIFT_BIG_PLAYLIST_URL),
+          [...SHIFT_M_BIG, ...SHIFT_S_BASE],
+        );
+      } finally {
+        await writeShiftRss("start-shift-big.rss", original);
+      }
+      await delplayFullCleanup(START_SHIFT_BIG_PLAYLIST_URL);
+    },
+  ),
+);
+
+Deno.test(
+  "TC-14.5 — Add 'Shift Endcast' playlist (11 videos, positions 1..11)",
+  tracked(
+    "TC-14.5 — Add 'Shift Endcast' playlist (11 videos, positions 1..11)",
+    async () => {
+      await (await apiRequest("/list", {
+        method: "POST",
+        body: JSON.stringify({
+          urlList: [END_APPEND_PLAYLIST_URL],
+          chunkSize: 10,
+          monitoringType: "N/A",
+          sleep: true,
+        }),
+      })).text();
+      await waitForSubCount(END_APPEND_PLAYLIST_URL, 11, SHIFT_TIMEOUT);
+      assertExactPlaylistOrder(
+        await getSubAllRows(END_APPEND_PLAYLIST_URL),
+        SHIFT_E_BASE,
+      );
+    },
+  ),
+);
+
+Deno.test(
+  "TC-14.6 — End update appending 10 grows the tail without duplicating",
+  tracked(
+    "TC-14.6 — End update appending 10 grows the tail without duplicating",
+    async () => {
+      const original = await readShiftRss("end-append.rss");
+      try {
+        await writeShiftRss(
+          "end-append.rss",
+          shiftRssXml("Shift Endcast", "end-append.rss", [
+            ...SHIFT_E_BASE,
+            ...SHIFT_E_APPENDED,
+          ]),
+        );
+        await relistWithMonitoring(END_APPEND_PLAYLIST_URL, "End");
+        await waitForSubCount(END_APPEND_PLAYLIST_URL, 21, SHIFT_TIMEOUT);
+        await waitForVideoPosition(
+          END_APPEND_PLAYLIST_URL,
+          SHIFT_E_APPENDED[SHIFT_E_APPENDED.length - 1],
+          21,
+        );
+        assertExactPlaylistOrder(
+          await getSubAllRows(END_APPEND_PLAYLIST_URL),
+          [...SHIFT_E_BASE, ...SHIFT_E_APPENDED],
+        );
+      } finally {
+        await writeShiftRss("end-append.rss", original);
+      }
+      // Re-apply v2 for TC-14.7, which deletes from its head.
+      await writeShiftRss(
+        "end-append.rss",
+        shiftRssXml("Shift Endcast", "end-append.rss", [
+          ...SHIFT_E_BASE,
+          ...SHIFT_E_APPENDED,
+        ]),
+      );
+    },
+  ),
+);
+
+Deno.test(
+  "TC-14.7 — End update after deleting 2 from the head moves survivors to 1..19",
+  tracked(
+    "TC-14.7 — End update after deleting 2 from the head moves survivors to 1..19",
+    async () => {
+      const full = [...SHIFT_E_BASE, ...SHIFT_E_APPENDED];
+      const afterDelete = full.slice(2);
+      try {
+        await writeShiftRss(
+          "end-append.rss",
+          shiftRssXml("Shift Endcast", "end-append.rss", afterDelete),
+        );
+        // Monitoring is already End, which /list would skip: drop to N/A
+        // first so the re-list takes the End tail path again.
+        await (await apiRequest("/watch", {
+          method: "POST",
+          body: JSON.stringify({ url: END_APPEND_PLAYLIST_URL, watch: "N/A" }),
+        })).text();
+        await relistWithMonitoring(END_APPEND_PLAYLIST_URL, "End");
+        // The count does not change here (19 moves, 0 creates), so wait on
+        // rows only the restarted full walk sets: the head (chunk 1) and a
+        // middle row from its second chunk. (The tail position of the last
+        // video is stale-but-correct left over from the tail window, so it
+        // must not be used as a readiness signal.)
+        await waitForVideoPosition(
+          END_APPEND_PLAYLIST_URL,
+          afterDelete[0],
+          1,
+        );
+        await waitForVideoPosition(
+          END_APPEND_PLAYLIST_URL,
+          afterDelete[10],
+          11,
+        );
+        const json = await getSubAllRows(END_APPEND_PLAYLIST_URL);
+        // Survivors moved; the 2 deleted videos' rows are retained as
+        // ghosts (tombstoning them from an incremental walk would also
+        // delete yt-dlp-skipped private items — Full is the repair path).
+        assertEquals(json.count, 21);
+        const pairs = new Set<string>();
+        for (const row of json.rows) {
+          const pair =
+            `${row.video_metadatum.videoUrl}|${row.positionInPlaylist}`;
+          assertEquals(pairs.has(pair), false, `duplicate row: ${pair}`);
+          pairs.add(pair);
+        }
+        const atPosition = (position: number) =>
+          json.rows
+            .filter((r: { positionInPlaylist: number }) =>
+              r.positionInPlaylist === position
+            )
+            .map((r: { video_metadatum: { videoUrl: string } }) =>
+              r.video_metadatum.videoUrl
+            )
+            .sort();
+        afterDelete.forEach((videoUrl, i) => {
+          assertEquals(
+            atPosition(i + 1).includes(videoUrl),
+            true,
+            `survivor ${videoUrl} missing at position ${i + 1}`,
+          );
+        });
+        // Ghosts of the two deleted head videos are still mapped.
+        assertEquals(atPosition(1).includes(full[0]), true);
+        assertEquals(atPosition(2).includes(full[1]), true);
+      } finally {
+        // TC-14.6 leaves v2 in this file, so regenerate the committed v1
+        // from constants rather than restoring a read-back.
+        await writeShiftRss(
+          "end-append.rss",
+          shiftRssXml("Shift Endcast", "end-append.rss", SHIFT_E_BASE),
+        );
+      }
+      await delplayFullCleanup(END_APPEND_PLAYLIST_URL);
     },
   ),
 );

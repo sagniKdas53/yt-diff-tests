@@ -7,12 +7,12 @@ are organized into suites that each validate a specific subsystem. Each test
 case documents the endpoint, request payload, expected response, and the
 invariant being asserted.
 
-**Base URL:** `http://localhost:8888/ytdiff`  
+**Base URL:** `http://localhost:8888/ytdiff`\
 **Auth:** Include a valid JWT in all requests where applicable.
 
 > [!NOTE]
-> Tests must be executed in order within each suite. Later suites may depend
-> on state established by earlier ones. Tear down the database to a clean state
+> Tests must be executed in order within each suite. Later suites may depend on
+> state established by earlier ones. Tear down the database to a clean state
 > before running the full plan from the top.
 
 ---
@@ -68,8 +68,9 @@ Validates that a playlist containing the same video at multiple positions is
 indexed correctly, that downloading one entry downloads the shared
 `VideoMetadata` record, and that cleanup propagates across all positions.
 
-**Playlist:** `Dup Test`  
-**URL:** `https://www.youtube.com/playlist?list=PL4Oo6H2hGqj0YkYoOLFmrbhsVWfAjCLZw`  
+**Playlist:** `Dup Test`\
+**URL:**
+`https://www.youtube.com/playlist?list=PL4Oo6H2hGqj0YkYoOLFmrbhsVWfAjCLZw`\
 **Video:** `Run Immich through a docker container on Tailscale` (`PexSJ31niEI`)
 
 ---
@@ -82,7 +83,9 @@ indexed correctly, that downloading one entry downloads the shared
 
 ```json
 {
-  "urlList": ["https://www.youtube.com/playlist?list=PL4Oo6H2hGqj0YkYoOLFmrbhsVWfAjCLZw"],
+  "urlList": [
+    "https://www.youtube.com/playlist?list=PL4Oo6H2hGqj0YkYoOLFmrbhsVWfAjCLZw"
+  ],
   "chunkSize": 9,
   "monitoringType": "N/A",
   "sleep": true
@@ -104,7 +107,8 @@ indexed correctly, that downloading one entry downloads the shared
 }
 ```
 
-**Assert:** `status === "success"`. `items[0].reason` is `"URL not found in database"`, confirming new ingestion.
+**Assert:** `status === "success"`. `items[0].reason` is
+`"URL not found in database"`, confirming new ingestion.
 
 ---
 
@@ -149,7 +153,8 @@ indexed correctly, that downloading one entry downloads the shared
 - `count === 2`
 - `rows[0].positionInPlaylist === 1`
 - `rows[1].positionInPlaylist === 2`
-- Both rows reference the same `videoUrl` (`https://www.youtube.com/watch?v=PexSJ31niEI`)
+- Both rows reference the same `videoUrl`
+  (`https://www.youtube.com/watch?v=PexSJ31niEI`)
 - Both rows have `downloadStatus === false`, `fileName === null`
 
 ---
@@ -174,8 +179,8 @@ indexed correctly, that downloading one entry downloads the shared
 - `items[0].saveDirectory === "Dup Test"`
 
 > [!NOTE]
-> Wait for the download to complete (monitor via WebSocket `download-started`
-> / progress events) before proceeding to TC-1.5.
+> Wait for the download to complete (monitor via WebSocket `download-started` /
+> progress events) before proceeding to TC-1.5.
 
 ---
 
@@ -226,8 +231,9 @@ Validates that a video downloaded in one playlist is reflected as already
 downloaded when that same video appears in a second playlist, and that cleaning
 up files in one context resets the shared `VideoMetadata` record everywhere.
 
-**Playlist:** `Dup Test 2`  
-**URL:** `https://www.youtube.com/playlist?list=PL4Oo6H2hGqj2fQCpmX2zfytLqD2Qv7yZY`
+**Playlist:** `Dup Test 2`\
+**URL:**
+`https://www.youtube.com/playlist?list=PL4Oo6H2hGqj2fQCpmX2zfytLqD2Qv7yZY`
 
 ---
 
@@ -239,7 +245,9 @@ up files in one context resets the shared `VideoMetadata` record everywhere.
 
 ```json
 {
-  "urlList": ["https://www.youtube.com/playlist?list=PL4Oo6H2hGqj2fQCpmX2zfytLqD2Qv7yZY"],
+  "urlList": [
+    "https://www.youtube.com/playlist?list=PL4Oo6H2hGqj2fQCpmX2zfytLqD2Qv7yZY"
+  ],
   "chunkSize": 9,
   "monitoringType": "N/A",
   "sleep": true
@@ -269,9 +277,11 @@ up files in one context resets the shared `VideoMetadata` record everywhere.
 **Assert:**
 
 - `count === 1`
-- `rows[0].video_metadatum.downloadStatus === true` — download state is shared across playlists via `VideoMetadata`
+- `rows[0].video_metadatum.downloadStatus === true` — download state is shared
+  across playlists via `VideoMetadata`
 - `rows[0].video_metadatum.fileName === "PexSJ31niEI.mkv"`
-- `rows[0].video_metadatum.saveDirectory === "Dup Test"` — file is physically stored under the original playlist's directory
+- `rows[0].video_metadatum.saveDirectory === "Dup Test"` — file is physically
+  stored under the original playlist's directory
 
 ---
 
@@ -318,7 +328,8 @@ up files in one context resets the shared `VideoMetadata` record everywhere.
 
 - `count === 2`
 - Both rows: `downloadStatus === false`, `fileName === null`
-- Confirms the `VideoMetadata` record is shared — cleanup in one playlist context propagates everywhere.
+- Confirms the `VideoMetadata` record is shared — cleanup in one playlist
+  context propagates everywhere.
 
 ---
 
@@ -350,7 +361,8 @@ up files in one context resets the shared `VideoMetadata` record everywhere.
 }
 ```
 
-**Assert:** `status === "success"`. Subsequent `GET /getplay` returns `count === 1` (only "Dup Test" remains).
+**Assert:** `status === "success"`. Subsequent `GET /getplay` returns
+`count === 1` (only "Dup Test" remains).
 
 ---
 
@@ -379,10 +391,12 @@ up files in one context resets the shared `VideoMetadata` record everywhere.
 
 ## Suite 3 — Video Deletion Modes (`E7 Shorts` Playlist)
 
-Validates the three `/delsub` deletion modes: full delete (`deleteVideosInDB`), unlink-only (`deleteVideoMappings`), and file-cleanup-only (`cleanUp`).
+Validates the three `/delsub` deletion modes: full delete (`deleteVideosInDB`),
+unlink-only (`deleteVideoMappings`), and file-cleanup-only (`cleanUp`).
 
-**Playlist:** `E7 Shorts`  
-**URL:** `https://www.youtube.com/playlist?list=PL4Oo6H2hGqj0iN_y58yjymtLFKC9qULfs`
+**Playlist:** `E7 Shorts`\
+**URL:**
+`https://www.youtube.com/playlist?list=PL4Oo6H2hGqj0iN_y58yjymtLFKC9qULfs`
 
 ---
 
@@ -475,10 +489,13 @@ Validates the three `/delsub` deletion modes: full delete (`deleteVideosInDB`), 
 
 ## Suite 4 — Pagination, Sorting, Download, and Cross-Playlist State (`Screen recordings`)
 
-Validates paginated sublist retrieval, `sortDownloaded` ordering, downloading a video already in one playlist into the "None" playlist, and that download state is visible from both playlist contexts.
+Validates paginated sublist retrieval, `sortDownloaded` ordering, downloading a
+video already in one playlist into the "None" playlist, and that download state
+is visible from both playlist contexts.
 
-**Playlist:** `Screen recordings`  
-**URL:** `https://www.youtube.com/playlist?list=PL4Oo6H2hGqj0xCU1eANC_L365_RFj2YOh`  
+**Playlist:** `Screen recordings`\
+**URL:**
+`https://www.youtube.com/playlist?list=PL4Oo6H2hGqj0xCU1eANC_L365_RFj2YOh`\
 **Total Videos:** 17
 
 ---
@@ -526,7 +543,8 @@ Validates paginated sublist retrieval, `sortDownloaded` ordering, downloading a 
 }
 ```
 
-**Assert:** `status === "success"`, `items[0].saveDirectory === "Screen recordings"`.
+**Assert:** `status === "success"`,
+`items[0].saveDirectory === "Screen recordings"`.
 
 ---
 
@@ -548,7 +566,8 @@ Validates paginated sublist retrieval, `sortDownloaded` ordering, downloading a 
 **Assert:**
 
 - `status === "success"`
-- `items[0].type === "undownloaded"` — video is known to the DB (already listed from the playlist) but not yet downloaded
+- `items[0].type === "undownloaded"` — video is known to the DB (already listed
+  from the playlist) but not yet downloaded
 
 ---
 
@@ -580,7 +599,8 @@ Validates paginated sublist retrieval, `sortDownloaded` ordering, downloading a 
 **Assert:**
 
 - `status === "success"`
-- `items[0].saveDirectory === "Screen recordings"` — the video inherits the save directory from its original playlist, not from "None".
+- `items[0].saveDirectory === "Screen recordings"` — the video inherits the save
+  directory from its original playlist, not from "None".
 
 ---
 
@@ -604,9 +624,11 @@ Validates paginated sublist retrieval, `sortDownloaded` ordering, downloading a 
 
 **Assert:**
 
-- The row for `JWdTskHy9TE` (position 15) shows `downloadStatus === true`, `fileName === "JWdTskHy9TE.mkv"`.
+- The row for `JWdTskHy9TE` (position 15) shows `downloadStatus === true`,
+  `fileName === "JWdTskHy9TE.mkv"`.
 - The row for `i0S9vlyQpig` (position 16) shows `downloadStatus === true`.
-- This confirms the shared `VideoMetadata` record reflects the download state in both playlist views.
+- This confirms the shared `VideoMetadata` record reflects the download state in
+  both playlist views.
 
 ---
 
@@ -636,8 +658,9 @@ Validates paginated sublist retrieval, `sortDownloaded` ordering, downloading a 
 
 ## Suite 5 — Prune Job and "None" Playlist Orphan Handling
 
-Validates that when a playlist is deleted (without deleting video records),
-the prune cron job moves downloaded orphans to "None" and destroys un-downloaded orphans.
+Validates that when a playlist is deleted (without deleting video records), the
+prune cron job moves downloaded orphans to "None" and destroys un-downloaded
+orphans.
 
 ---
 
@@ -674,24 +697,27 @@ the prune cron job moves downloaded orphans to "None" and destroys un-downloaded
 ### TC-5.3 — "None" sublist after prune job runs
 
 > [!NOTE]
-> Wait for the prune job to execute (up to `PRUNE_INTERVAL`, default 30 min;
-> can be shortened via env var for test environments). The job moves downloaded
+> Wait for the prune job to execute (up to `PRUNE_INTERVAL`, default 30 min; can
+> be shortened via env var for test environments). The job moves downloaded
 > orphans to "None" and destroys un-downloaded orphans.
 
 **Endpoint:** `POST /getsub` with `url: "None"`
 
 **Assert:**
 
-- `count === 2` — the two previously downloaded videos (`JWdTskHy9TE`, `i0S9vlyQpig`) have been moved to "None".
-- All other un-downloaded videos from the playlist have been removed from `VideoMetadata`.
-- The two rescued videos retain their `fileName`, `thumbNailFile`, and `saveDirectory` values.
+- `count === 2` — the two previously downloaded videos (`JWdTskHy9TE`,
+  `i0S9vlyQpig`) have been moved to "None".
+- All other un-downloaded videos from the playlist have been removed from
+  `VideoMetadata`.
+- The two rescued videos retain their `fileName`, `thumbNailFile`, and
+  `saveDirectory` values.
 
 ---
 
 ## Suite 6 — "None" Playlist Deduplication and Single-Video Ingestion
 
-Validates idempotent single-video adds, duplicate prevention in "None", and
-the WebSocket notification behavior.
+Validates idempotent single-video adds, duplicate prevention in "None", and the
+WebSocket notification behavior.
 
 ---
 
@@ -712,8 +738,10 @@ the WebSocket notification behavior.
 
 **Assert:**
 
-- `items` array is empty (`[]`) — server recognizes the video is already in "None" and skips re-ingestion.
-- WebSocket event `listing-single-item-complete` is received with `alreadyExisted: true` and a `seekSubListTo` position.
+- `items` array is empty (`[]`) — server recognizes the video is already in
+  "None" and skips re-ingestion.
+- WebSocket event `listing-single-item-complete` is received with
+  `alreadyExisted: true` and a `seekSubListTo` position.
 
 ---
 
@@ -735,7 +763,8 @@ the WebSocket notification behavior.
 **Assert:**
 
 - `items[0].reason === "URL not found in database"` — new video ingested.
-- `GET /getsub` for "None" shows `count === 3`, new video at position 3 with `downloadStatus === false`.
+- `GET /getsub` for "None" shows `count === 3`, new video at position 3 with
+  `downloadStatus === false`.
 
 ---
 
@@ -745,18 +774,22 @@ the WebSocket notification behavior.
 
 **Assert:**
 
-- `items[0].type === "undownloaded"` — video is in DB but not downloaded; server acknowledges without creating a duplicate mapping.
-- WebSocket event `listing-single-item-complete` received with `alreadyExisted: true`.
+- `items[0].type === "undownloaded"` — video is in DB but not downloaded; server
+  acknowledges without creating a duplicate mapping.
+- WebSocket event `listing-single-item-complete` received with
+  `alreadyExisted: true`.
 - `GET /getsub` for "None" still returns `count === 3` (no new entry added).
 
 ---
 
 ## Suite 7 — Re-Index (`/reindexall`)
 
-Validates that the re-index endpoint re-populates a playlist's video mappings after they have been cleared.
+Validates that the re-index endpoint re-populates a playlist's video mappings
+after they have been cleared.
 
-**Playlist:** `Engineering Stuff`  
-**URL:** `https://www.youtube.com/playlist?list=PL4Oo6H2hGqj2TwKOK-_dXvPlzs1DktqFX`
+**Playlist:** `Engineering Stuff`\
+**URL:**
+`https://www.youtube.com/playlist?list=PL4Oo6H2hGqj2TwKOK-_dXvPlzs1DktqFX`
 
 ---
 
@@ -845,10 +878,16 @@ Validates the `/getfile`, `/getfiles`, and `/refreshfile` token flow.
 **Assert:**
 
 - `status === "success"`
-- The response `files` map contains one entry for `PexSJ31niEI.webp` (duplicates are de-duplicated server-side).
-- Each entry is a structured object containing both `signedUrlId` (a UUID string) and `expiry` (a future millisecond timestamp) — not a bare UUID string.
+- The response `files` map contains one entry for `PexSJ31niEI.webp` (duplicates
+  are de-duplicated server-side).
+- Each entry is a structured object containing both `signedUrlId` (a UUID
+  string) and `expiry` (a future millisecond timestamp) — not a bare UUID
+  string.
 
-> **Regression guard (Frontend Bug #4):** Before this fix, `/getfiles` returned only the token UUID, giving the frontend no way to schedule proactive refresh. The `expiry` field is now required for the thumbnail sliding-window refresh to function correctly.
+> **Regression guard (Frontend Bug #4):** Before this fix, `/getfiles` returned
+> only the token UUID, giving the frontend no way to schedule proactive refresh.
+> The `expiry` field is now required for the thumbnail sliding-window refresh to
+> function correctly.
 
 ---
 
@@ -895,15 +934,20 @@ Validates the `/getfile`, `/getfiles`, and `/refreshfile` token flow.
 **Assert:**
 
 - `status === "success"`
-- `expiry` is a new timestamp approximately 30 minutes later than the original, confirming the sliding window extension.
+- `expiry` is a new timestamp approximately 30 minutes later than the original,
+  confirming the sliding window extension.
 
 ---
 
 ## Suite 10 — Regression: Per-Mapping Delete for Duplicate Playlist Entries (Backend Bug #5)
 
-Tests the fix that allows individual duplicate entries in a playlist to be deleted one at a time by mapping ID, without removing all mappings for the same video URL simultaneously.
+Tests the fix that allows individual duplicate entries in a playlist to be
+deleted one at a time by mapping ID, without removing all mappings for the same
+video URL simultaneously.
 
-**Prerequisite:** The `Dup Test` playlist (`PL4Oo6H2hGqj0YkYoOLFmrbhsVWfAjCLZw`) must be present with both duplicate mappings for `PexSJ31niEI` intact and un-downloaded (state left by Suite 2).
+**Prerequisite:** The `Dup Test` playlist (`PL4Oo6H2hGqj0YkYoOLFmrbhsVWfAjCLZw`)
+must be present with both duplicate mappings for `PexSJ31niEI` intact and
+un-downloaded (state left by Suite 2).
 
 ---
 
@@ -926,9 +970,12 @@ Tests the fix that allows individual duplicate entries in a playlist to be delet
 **Assert:**
 
 - `count === 2`
-- `rows[0].id` is a non-null UUID string — the `PlaylistVideoMapping` row ID for position 1
-- `rows[1].id` is a **different** non-null UUID string — the mapping row ID for position 2
-- Both rows reference the same `videoUrl` (`https://www.youtube.com/watch?v=PexSJ31niEI`)
+- `rows[0].id` is a non-null UUID string — the `PlaylistVideoMapping` row ID for
+  position 1
+- `rows[1].id` is a **different** non-null UUID string — the mapping row ID for
+  position 2
+- Both rows reference the same `videoUrl`
+  (`https://www.youtube.com/watch?v=PexSJ31niEI`)
 
 ---
 
@@ -962,16 +1009,23 @@ Tests the fix that allows individual duplicate entries in a playlist to be delet
 **Assert:**
 
 - `count === 1`
-- `rows[0].positionInPlaylist === 2` — position 1 was removed, position 2 survives untouched
-- `rows[0].video_metadatum.videoUrl === "https://www.youtube.com/watch?v=PexSJ31niEI"` — same video still present at position 2
+- `rows[0].positionInPlaylist === 2` — position 1 was removed, position 2
+  survives untouched
+- `rows[0].video_metadatum.videoUrl === "https://www.youtube.com/watch?v=PexSJ31niEI"`
+  — same video still present at position 2
 
-> **Regression guard:** Before this fix, the `/delsub` request validator stripped `mappingIds` before it reached the handler, causing deletion by `videoUrl` which removed both entries simultaneously. The fix ensures deletion by `mappingId` is scoped to the exact row.
+> **Regression guard:** Before this fix, the `/delsub` request validator
+> stripped `mappingIds` before it reached the handler, causing deletion by
+> `videoUrl` which removed both entries simultaneously. The fix ensures deletion
+> by `mappingId` is scoped to the exact row.
 
 ---
 
 ## Suite 11 — Regression: Sort Index Not Burned on Failed Playlist Bootstrap (Backend Bug #2)
 
-Tests that a failed playlist bootstrap does not consume the next available `sortOrder` slot, keeping the index sequence contiguous for subsequent successful additions.
+Tests that a failed playlist bootstrap does not consume the next available
+`sortOrder` slot, keeping the index sequence contiguous for subsequent
+successful additions.
 
 ---
 
@@ -991,7 +1045,9 @@ Tests that a failed playlist bootstrap does not consume the next available `sort
 
 ### TC-11.2 — Trigger a failed playlist bootstrap
 
-Submit a URL that fails during bootstrap — for example, a playlist whose first several items are all unavailable/private so the listing stream yields no valid metadata before the failure path is hit.
+Submit a URL that fails during bootstrap — for example, a playlist whose first
+several items are all unavailable/private so the listing stream yields no valid
+metadata before the failure path is hit.
 
 **Endpoint:** `POST /list`
 
@@ -999,7 +1055,9 @@ Submit a URL that fails during bootstrap — for example, a playlist whose first
 
 ```json
 {
-  "urlList": ["https://www.youtube.com/playlist?list=PLwLSw1_eDZl3mojgeqUHyMpTt3lQ6ogmJ"],
+  "urlList": [
+    "https://www.youtube.com/playlist?list=PLwLSw1_eDZl3mojgeqUHyMpTt3lQ6ogmJ"
+  ],
   "chunkSize": 9,
   "monitoringType": "N/A",
   "sleep": true
@@ -1007,7 +1065,10 @@ Submit a URL that fails during bootstrap — for example, a playlist whose first
 ```
 
 > [!NOTE]
-> This URL's first 13 items are unavailable (Backend Bug #1, still open). The bootstrap is expected to fail or produce no playlist row. If Bug #1 is fixed before this test runs, substitute a different URL that reliably triggers a bootstrap failure.
+> This URL's first 13 items are unavailable (Backend Bug #1, still open). The
+> bootstrap is expected to fail or produce no playlist row. If Bug #1 is fixed
+> before this test runs, substitute a different URL that reliably triggers a
+> bootstrap failure.
 
 **Assert:**
 
@@ -1023,7 +1084,9 @@ Submit a URL that fails during bootstrap — for example, a playlist whose first
 
 ```json
 {
-  "urlList": ["https://www.youtube.com/playlist?list=PL4Oo6H2hGqj2TwKOK-_dXvPlzs1DktqFX"],
+  "urlList": [
+    "https://www.youtube.com/playlist?list=PL4Oo6H2hGqj2TwKOK-_dXvPlzs1DktqFX"
+  ],
   "chunkSize": 9,
   "monitoringType": "N/A",
   "sleep": true
@@ -1049,7 +1112,10 @@ Submit a URL that fails during bootstrap — for example, a playlist whose first
 - `count === 1`
 - `rows[0].sortOrder === 0`
 
-> **Regression guard:** Before this fix, the in-memory sort counter was incremented before playlist creation fully succeeded, causing the next successful playlist to land at `sortOrder === 1` (or higher) and leaving a permanent gap in the display order.
+> **Regression guard:** Before this fix, the in-memory sort counter was
+> incremented before playlist creation fully succeeded, causing the next
+> successful playlist to land at `sortOrder === 1` (or higher) and leaving a
+> permanent gap in the display order.
 
 ---
 
@@ -1074,15 +1140,21 @@ Submit a URL that fails during bootstrap — for example, a playlist whose first
 
 ## Suite 12 — Regression: "None" Playlist Add Feedback and No Filesystem Path Exposure (Backend Bug #3)
 
-Tests the improved feedback messages when adding videos to "None" that are already known to the database, and that no responses leak absolute filesystem paths to the client.
+Tests the improved feedback messages when adding videos to "None" that are
+already known to the database, and that no responses leak absolute filesystem
+paths to the client.
 
-**Prerequisite:** At least one video must exist in `VideoMetadata` from a prior listing (e.g., from Suite 4's `Screen recordings` run) but must not already be mapped to "None".
+**Prerequisite:** At least one video must exist in `VideoMetadata` from a prior
+listing (e.g., from Suite 4's `Screen recordings` run) but must not already be
+mapped to "None".
 
 ---
 
 ### TC-12.1 — Adding a known-but-unmapped video to "None" uses fast-path insert
 
-A video that is already in `VideoMetadata` (indexed from a playlist) but not yet in "None" should be inserted directly into "None" without re-fetching metadata from the source URL.
+A video that is already in `VideoMetadata` (indexed from a playlist) but not yet
+in "None" should be inserted directly into "None" without re-fetching metadata
+from the source URL.
 
 **Endpoint:** `POST /list`
 
@@ -1100,8 +1172,12 @@ A video that is already in `VideoMetadata` (indexed from a playlist) but not yet
 **Assert:**
 
 - `status === "success"`
-- `items[0].type` is `"undownloaded"` or `"video"` — not `"undetermined"`. `"undetermined"` would indicate yt-dlp was invoked; a more specific type confirms the fast-path was taken.
-- If the video was already downloaded in another playlist, the WebSocket `listing-single-item-complete` event includes the source playlist title and position in "None".
+- `items[0].type` is `"undownloaded"` or `"video"` — not `"undetermined"`.
+  `"undetermined"` would indicate yt-dlp was invoked; a more specific type
+  confirms the fast-path was taken.
+- If the video was already downloaded in another playlist, the WebSocket
+  `listing-single-item-complete` event includes the source playlist title and
+  position in "None".
 - No field in the REST response body contains an absolute filesystem path.
 
 ---
@@ -1128,8 +1204,111 @@ Review responses from TC-12.1 and TC-12.2 (both REST and WebSocket payloads).
 
 **Assert:**
 
-- No string field starts with `/` followed by a filesystem path component (e.g., `/data/`, `/home/`, `/mnt/`).
-- `saveDirectory` values, where present, are relative names only (e.g., `"Screen recordings"`).
+- No string field starts with `/` followed by a filesystem path component (e.g.,
+  `/data/`, `/home/`, `/mnt/`).
+- `saveDirectory` values, where present, are relative names only (e.g.,
+  `"Screen recordings"`).
+
+---
+
+## Suite 14 — Start/End Incremental Shift Updates
+
+Regression coverage for the watch-mode duplication bug: a playlist gaining
+videos at the top (`Start`) shifts every existing position down, and one
+appending at the bottom (`End`) grows the tail. The updater used to key rows on
+`videoUrl|position` and re-create shifted rows instead of moving them, so every
+position ended up with two rows (e.g. `count: 203` with pairs at positions 1..8
+on a channel profile).
+
+Static fixtures cannot express a playlist changing under the updater, so these
+tests rewrite the mock-tube RSS mid-run — via the `mock-tube` volume mounted
+writable into the test-runner — and restore the committed v1 afterwards. Only
+the v1 states are committed; v2/v3 states are built by the test. The core
+assertion everywhere is `assertExactPlaylistOrder`: positions cover exactly
+`1..N` in order, each holds the expected video, and no `(videoUrl, position)`
+pair appears twice.
+
+**Playlists:** `start-shift.rss` ("Shift Startcast", v1: 10 videos),
+`start-shift-big.rss` ("Shift Startcast Big", v1: 10 videos), `end-append.rss`
+("Shift Endcast", v1: 11 videos)
+
+---
+
+### TC-14.1 — Add "Shift Startcast" playlist (10 videos, positions 1..10)
+
+**Endpoint:** `POST /list` (`monitoringType: "N/A"`) then `POST /getsub`
+
+**Assert:** `count === 10`, positions `1..10` hold `video-shift-s01..s10`.
+
+---
+
+### TC-14.2 — Start update after prepending 3 shifts rows without duplicating
+
+Rewrite `start-shift.rss` with 3 new videos prepended (13 total), then
+`POST /list` with `monitoringType: "Start"`.
+
+**Assert:**
+
+- `/list` responds `status === "success"` with
+  `items[0].reason === "Monitoring type changed"` (the update path ran).
+- After settling, `count === 13`; positions `1..3` hold the new videos, `4..13`
+  hold the shifted originals; no duplicate pairs.
+- The RSS file is restored to v1; the playlist is deleted via `/delplay`.
+
+---
+
+### TC-14.3 — Add "Shift Startcast Big" playlist (10 videos)
+
+Same as TC-14.1 against `start-shift-big.rss`.
+
+---
+
+### TC-14.4 — Start update prepending 12 (more than one chunk) keeps 22 unique rows
+
+Rewrite `start-shift-big.rss` with 12 new videos prepended (22 total, chunk size
+10, so the first chunk is entirely new and the shift is only learnable from the
+second chunk onward), then re-list with `"Start"`.
+
+**Assert:** `count === 22`; positions `1..12` hold the new videos, `13..22` the
+shifted originals; no duplicate pairs. File restored, playlist deleted.
+
+---
+
+### TC-14.5 — Add "Shift Endcast" playlist (11 videos, positions 1..11)
+
+**Endpoint:** `POST /list` (`monitoringType: "N/A"`) then `POST /getsub`
+
+**Assert:** `count === 11`, positions `1..11` hold `video-shift-e01..e11`.
+
+---
+
+### TC-14.6 — End update appending 10 grows the tail without duplicating
+
+Rewrite `end-append.rss` with 10 videos appended (21 total, mirroring a real 11
+→ 21 catch-up), then re-list with `"End"`.
+
+**Assert:** `count === 21`; positions `1..11` unchanged, `12..21` hold the
+appended videos; no duplicate pairs. The v2 file stays in place for TC-14.7.
+
+---
+
+### TC-14.7 — End update after deleting 2 from the head moves survivors to 1..19
+
+Rewrite `end-append.rss` without its first 2 items (19 total). Monitoring is
+already `End`, which `/list` would skip, so `POST /watch` drops it to `"N/A"`
+first and the re-list takes the `End` tail path again. The count does not change
+(19 moves, 0 creates), so the test waits on survivors reaching positions 1 and
+19 rather than on a count.
+
+**Assert:**
+
+- All 19 surviving videos are present at positions `1..19` in order.
+- No `(videoUrl, position)` pair appears twice.
+- `count === 21`: the 2 deleted videos' rows are retained as ghosts. Tombstoning
+  unobserved rows from an incremental walk would also delete yt-dlp-skipped
+  private items, so `Full` remains the repair path for deletions.
+- The committed v1 is regenerated afterwards and the playlist is deleted via
+  `/delplay`.
 
 ---
 
@@ -1146,7 +1325,8 @@ Tear down all test state created during the plan.
 Delete orphaned test videos from "None" using appropriate flag combinations:
 
 - Videos with no files: `deleteVideoMappings: true, deleteVideosInDB: false`
-- Videos with downloaded files: `cleanUp: true, deleteVideoMappings: true, deleteVideosInDB: true`
+- Videos with downloaded files:
+  `cleanUp: true, deleteVideoMappings: true, deleteVideosInDB: true`
 
 **Assert:** After all deletions, `GET /getsub` for "None" returns `count === 0`.
 
@@ -1175,17 +1355,17 @@ Delete orphaned test videos from "None" using appropriate flag combinations:
 
 ### Open bugs (no test cases yet)
 
-- **Playlist bootstrap fails when early items are unavailable (Backend Bug #1)** —
-  Playlists where the first N items are private or deleted fail to bootstrap
+- **Playlist bootstrap fails when early items are unavailable (Backend Bug #1)**
+  — Playlists where the first N items are private or deleted fail to bootstrap
   even though valid items exist further down the list. The URL
   `https://www.youtube.com/playlist?list=PLwLSw1_eDZl3mojgeqUHyMpTt3lQ6ogmJ`
   (first 13 items unavailable) is a confirmed reproduction case. Suite 11
   currently uses this URL as a failure trigger; once the bug is fixed, Suite 11
-  must be updated with a different failure URL and a new TC added to confirm
-  the playlist bootstraps successfully with a tolerant early-item strategy.
+  must be updated with a different failure URL and a new TC added to confirm the
+  playlist bootstraps successfully with a tolerant early-item strategy.
 
-- **Important events should appear in the notification center (Backend Bug #4)** —
-  Coverage of snackbar and notification-center events is inconsistent across
+- **Important events should appear in the notification center (Backend Bug #4)**
+  — Coverage of snackbar and notification-center events is inconsistent across
   socket and REST flows. Requires a browser-level integration test once an audit
   of all success/error/info paths is complete.
 
@@ -1209,7 +1389,8 @@ Delete orphaned test videos from "None" using appropriate flag combinations:
   (enabled by the Backend Bug #5 fix) needs a test covering deletion of 3+
   mappings in a single request.
 - **Multiple playlist + None concurrent adds** — Verify categorization and
-  WebSocket streaming correctness when several URLs are submitted simultaneously.
+  WebSocket streaming correctness when several URLs are submitted
+  simultaneously.
 - **`sortOrder` compaction on mid-list deletion** — Verify that deleting a
   playlist that is not last in the list correctly decrements `sortOrder` for all
   higher-sorted playlists, leaving no gaps.

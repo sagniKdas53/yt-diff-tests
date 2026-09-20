@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<rss version="2.0">
+<channel>
+  <title>Shift Startcast</title>
+  <link>https://mock-tube/playlists/start-shift.rss?list=1</link>
+  <description>Mock for Shift Startcast</description>
+  <item>
+    <title>video-shift-s01.mp4 - Shift Startcast</title>
+    <link>https://mock-tube/videos/video-shift-s01.mp4</link>
+    <enclosure url="https://mock-tube/videos/video-shift-s01.mp4" length="2237" type="video/mp4" />
+  </item>
+  <item>
+    <title>video-shift-s02.mp4 - Shift Startcast</title>
+    <link>https://mock-tube/videos/video-shift-s02.mp4</link>
+    <enclosure url="https://mock-tube/videos/video-shift-s02.mp4" length="2237" type="video/mp4" />
+  </item>
+  <item>
+    <title>video-shift-s03.mp4 - Shift Startcast</title>
+    <link>https://mock-tube/videos/video-shift-s03.mp4</link>
+    <enclosure url="https://mock-tube/videos/video-shift-s03.mp4" length="2237" type="video/mp4" />
+  </item>
+  <item>
+    <title>video-shift-s04.mp4 - Shift Startcast</title>
+    <link>https://mock-tube/videos/video-shift-s04.mp4</link>
+    <enclosure url="https://mock-tube/videos/video-shift-s04.mp4" length="2237" type="video/mp4" />
+  </item>
+  <item>
+    <title>video-shift-s05.mp4 - Shift Startcast</title>
+    <link>https://mock-tube/videos/video-shift-s05.mp4</link>
+    <enclosure url="https://mock-tube/videos/video-shift-s05.mp4" length="2237" type="video/mp4" />
+  </item>
+  <item>
+    <title>video-shift-s06.mp4 - Shift Startcast</title>
+    <link>https://mock-tube/videos/video-shift-s06.mp4</link>
+    <enclosure url="https://mock-tube/videos/video-shift-s06.mp4" length="2237" type="video/mp4" />
+  </item>
+  <item>
+    <title>video-shift-s07.mp4 - Shift Startcast</title>
+    <link>https://mock-tube/videos/video-shift-s07.mp4</link>
+    <enclosure url="https://mock-tube/videos/video-shift-s07.mp4" length="2237" type="video/mp4" />
+  </item>
+  <item>
+    <title>video-shift-s08.mp4 - Shift Startcast</title>
+    <link>https://mock-tube/videos/video-shift-s08.mp4</link>
+    <enclosure url="https://mock-tube/videos/video-shift-s08.mp4" length="2237" type="video/mp4" />
+  </item>
+  <item>
+    <title>video-shift-s09.mp4 - Shift Startcast</title>
+    <link>https://mock-tube/videos/video-shift-s09.mp4</link>
+    <enclosure url="https://mock-tube/videos/video-shift-s09.mp4" length="2237" type="video/mp4" />
+  </item>
+  <item>
+    <title>video-shift-s10.mp4 - Shift Startcast</title>
+    <link>https://mock-tube/videos/video-shift-s10.mp4</link>
+    <enclosure url="https://mock-tube/videos/video-shift-s10.mp4" length="2237" type="video/mp4" />
+  </item>
+</channel>
+</rss>

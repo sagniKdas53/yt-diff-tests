@@ -67,4 +67,36 @@ create_video("video-unlisted.mp4")
 # is what causes yt-dlp to fail on it, simulating a private/deleted video.
 create_rss("private-first-item.rss", "Private First Item Playlist", ["video-nonexistent.mp4", "video-public.mp4", "video-unlisted.mp4"], skip_videos={"video-nonexistent.mp4"})
 
+# Suite 14: Start/End incremental shift updates.
+# Only the v1 states are committed. The E2E suite rewrites each RSS mid-run
+# (prepend for Start, append/delete for End) and restores v1 afterwards, so
+# the same playlist URL is observed shifting under the updater — which is
+# exactly the scenario static fixtures cannot express.
+SHIFT_BASE = [f"video-shift-s{i:02d}.mp4" for i in range(1, 11)]
+
+# TC-14.1/14.2: Start playlist, 10 items; the test prepends 3.
+create_rss("start-shift.rss", "Shift Startcast", SHIFT_BASE)
+
+# TC-14.3/14.4: Start playlist, 10 items; the test prepends 12 (more than the
+# chunk size of 10), so the first chunk is all-new and the anchor only
+# appears in the second chunk.
+create_rss("start-shift-big.rss", "Shift Startcast Big", SHIFT_BASE)
+
+# TC-14.5/14.6/14.7: End playlist, 11 items; the test appends 10 (mirroring a
+# real 11 -> 21 catch-up) and then deletes 2 from the head.
+create_rss(
+    "end-append.rss",
+    "Shift Endcast",
+    [f"video-shift-e{i:02d}.mp4" for i in range(1, 12)],
+)
+
+# All videos the Suite 14 v2/v3 states reference. create_video is a no-op for
+# files that already exist, so re-running this script is safe.
+for _vid in (
+    [f"video-shift-n{i:02d}.mp4" for i in range(1, 4)]
+    + [f"video-shift-m{i:02d}.mp4" for i in range(1, 13)]
+    + [f"video-shift-e{i:02d}.mp4" for i in range(12, 22)]
+):
+    create_video(_vid)
+
 print("Done.")
