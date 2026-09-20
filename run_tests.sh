@@ -25,6 +25,13 @@ openssl x509 -req -in mock-tube/ssl/server.csr -CA mock-tube/ssl/ca.crt -CAkey m
 echo "Creating combined CA bundle..."
 cat /etc/ssl/certs/ca-certificates.crt mock-tube/ssl/ca.crt > mock-tube/ssl/combined-ca.crt
 
+echo "Making shift-test RSS fixtures writable for the test-runner..."
+# Suite 14 rewrites these feeds mid-run. The test-runner container runs as
+# uid 1000, which rarely owns the host checkout (CI runners use another
+# uid), so the feeds must be world-writable. Committed git modes are
+# unaffected; only the working-tree files are touched.
+chmod a+w mock-tube/public/playlists/start-shift.rss mock-tube/public/playlists/start-shift-big.rss mock-tube/public/playlists/end-append.rss
+
 echo "Starting isolated test stack and running tests..."
 # --build: Always rebuild the test-runner if changes are made to Dockerfile.test or api_test.ts
 # --exit-code-from: Exit with the same code as the test-runner service
