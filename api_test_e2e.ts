@@ -2560,6 +2560,37 @@ Deno.test(
 );
 
 Deno.test(
+  "TC-15.9 — /cancel accepts both kinds and answers with the same vocabulary",
+  tracked(
+    "TC-15.9 — /cancel accepts both kinds and answers with the same vocabulary",
+    async () => {
+      // Both kinds are accepted and both answer 200 with the same three
+      // outcomes. What is being pinned here is the vocabulary rather than a
+      // race: a listing or download that is genuinely running cannot be
+      // caught at a chosen instant in this fixture environment, because a
+      // mock-tube video finishes in tens of milliseconds. The kill path is
+      // covered where it can be deterministic instead — the backend's own
+      // pipeline tests, and the pause/cancel round trip in the job-control
+      // suite, where a paused job stays put long enough to act on.
+      for (const kind of ["download", "listing"]) {
+        const resp = await apiRequest("/cancel", {
+          method: "POST",
+          body: JSON.stringify({
+            url: "https://mock-tube/playlists/never-indexed.rss?list=1",
+            kind,
+          }),
+        });
+        assertEquals(resp.status, 200);
+        const json = await resp.json();
+        assertEquals(json.status, "success");
+        assertEquals(json.kind, kind);
+        assertEquals(json.outcome, "not-found");
+      }
+    },
+  ),
+);
+
+Deno.test(
   "TC-15.8 — /cancel refuses a kind it does not know",
   tracked("TC-15.8 — /cancel refuses a kind it does not know", async () => {
     const resp = await apiRequest("/cancel", {

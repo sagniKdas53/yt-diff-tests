@@ -1488,6 +1488,27 @@ hid a button believing the work went away.
 
 ---
 
+### TC-15.9 — `/cancel` accepts both kinds and answers with one vocabulary
+
+**Endpoint:** `POST /cancel`
+
+**Request:** the same URL under `"download"` and again under `"listing"`.
+
+**Assert:** for each, HTTP `200`, `status === "success"`, the echoed `kind`, and
+`outcome` drawn from the same three documented answers (`killed`, `queued`,
+`not-found`).
+
+> What this pins is the vocabulary, not a race. A listing or download that is
+> genuinely _running_ cannot be caught at a chosen instant in this fixture
+> environment — a mock-tube video finishes in tens of milliseconds — so a test
+> that waited for `killed` here would be a coin flip, and a coin flip in CI is
+> worse than an honest gap. The kill path is covered where it can be
+> deterministic instead: the backend's own pipeline tests, and the
+> pause-then-cancel round trip in the job-control suite, where a paused job
+> stays put long enough to act on.
+
+---
+
 ## Suite 9 — Cleanup
 
 Tear down all test state created during the plan.
