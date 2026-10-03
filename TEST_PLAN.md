@@ -1312,6 +1312,203 @@ first and the re-list takes the `End` tail path again. The count does not change
 
 ---
 
+## Suite 15 — Bot-Facing Sidecar, Keep, Cancel and Locate Endpoints
+
+Validates the four endpoints the chat bot and the web UI gained alongside the
+partial-download work: fetching only what a run missed, keeping a file, stopping
+a job, and opening a link to any page of a list.
+
+**Playlist:** `Dup Test`\
+**URL:** `https://mock-tube/playlists/dup-test-1.rss?list=1`\
+**Video:** `https://mock-tube/videos/video-dup.mp4`
+
+**Setup:** index the playlist (2 mappings) and download the video.
+
+---
+
+### TC-15.1 — A completed download reports itself complete
+
+**Endpoint:** `POST /getsub`
+
+**Request:**
+
+```json
+{
+  "start": 0,
+  "stop": 8,
+  "sortDownloaded": false,
+  "query": "",
+  "url": "https://mock-tube/playlists/dup-test-1.rss?list=1"
+}
+```
+
+**Assert** on `rows[0].video_metadatum`:
+
+- `isMetaDataSynced === true`
+- `missingExtras === null`
+- `chapters === null`
+- `botExpiresAt === null`
+
+> **Regression guard:** the fixture offers no subtitles, chapters, description
+> or comments, and none of those is something the run failed to fetch. An extra
+> the source never had is not a gap, and reporting it as one is what made every
+> download look partial. `chapters === null` additionally proves the ffprobe
+> probe ran and found nothing — the common case, not a failure.
+
+---
+
+### TC-15.2 — `/syncextras` runs nothing when there is nothing missing
+
+**Endpoint:** `POST /syncextras`
+
+**Request:**
+
+```json
+{ "videoUrl": "https://mock-tube/videos/video-dup.mp4" }
+```
+
+**Assert:**
+
+- HTTP `200`
+- `status === "unchanged"`
+- `recovered` and `stillMissing` are both empty arrays
+
+> A retry against a complete download must not spend a yt-dlp process to
+> discover there is nothing to fetch.
+
+---
+
+### TC-15.3 — `/syncextras` refuses a body with no video
+
+**Endpoint:** `POST /syncextras`
+
+**Request:**
+
+```json
+{}
+```
+
+**Assert:** HTTP `400`. The URL is handed to `yt-dlp` as an argument, so a
+missing one is a bad request rather than a run against nothing.
+
+---
+
+### TC-15.4 — `/keepfile` says plainly that there was nothing to keep
+
+**Endpoint:** `POST /keepfile`
+
+**Request:**
+
+```json
+{ "videoUrl": "https://mock-tube/videos/video-dup.mp4" }
+```
+
+**Assert:**
+
+- HTTP `200`
+- `status === "success"`
+- `kept === 0`
+
+> No bot has fetched this file, so zero is the honest answer and the UI says it
+> out loud rather than dressing it up as a success.
+
+---
+
+### TC-15.5 — `/locate` names the list and the page a video opens in
+
+**Endpoint:** `POST /locate`
+
+**Request:**
+
+```json
+{
+  "videoUrl": "https://mock-tube/videos/video-dup.mp4",
+  "pageSize": 8,
+  "sortDownloaded": false
+}
+```
+
+**Assert:**
+
+- HTTP `200`
+- `videoUrl` echoes the request
+- `playlistUrl === "https://mock-tube/playlists/dup-test-1.rss?list=1"`
+- `page === 0`
+
+> The list comes from the same helper `resolveAndEnqueue` uses to pick a folder,
+> so the player link opens the list the download actually landed in.
+
+---
+
+### TC-15.6 — `/locate` reports a video that belongs to no list
+
+**Endpoint:** `POST /locate`
+
+**Request:**
+
+```json
+{
+  "videoUrl": "https://mock-tube/videos/not-indexed.mp4",
+  "pageSize": 8
+}
+```
+
+**Assert:** `playlistUrl === null` and `page === null` — null rather than a
+guess, so the caller drops the link instead of opening a list that does not hold
+the video.
+
+---
+
+### TC-15.7 — `/cancel` says there was nothing to stop
+
+**Endpoint:** `POST /cancel`
+
+**Request:**
+
+```json
+{ "url": "https://mock-tube/videos/video-dup.mp4", "kind": "download" }
+```
+
+**Assert:** `outcome === "not-found"`. A bare `200` would leave a client that
+hid a button believing the work went away.
+
+---
+
+### TC-15.8 — `/cancel` refuses a kind it does not know
+
+**Endpoint:** `POST /cancel`
+
+**Request:**
+
+```json
+{ "url": "https://mock-tube/videos/video-dup.mp4", "kind": "everything" }
+```
+
+**Assert:** HTTP `400`.
+
+---
+
+### TC-15.9 — `/cancel` accepts both kinds and answers with one vocabulary
+
+**Endpoint:** `POST /cancel`
+
+**Request:** the same URL under `"download"` and again under `"listing"`.
+
+**Assert:** for each, HTTP `200`, `status === "success"`, the echoed `kind`, and
+`outcome` drawn from the same three documented answers (`killed`, `queued`,
+`not-found`).
+
+> What this pins is the vocabulary, not a race. A listing or download that is
+> genuinely _running_ cannot be caught at a chosen instant in this fixture
+> environment — a mock-tube video finishes in tens of milliseconds — so a test
+> that waited for `killed` here would be a coin flip, and a coin flip in CI is
+> worse than an honest gap. The kill path is covered where it can be
+> deterministic instead: the backend's own pipeline tests, and the
+> pause-then-cancel round trip in the job-control suite, where a paused job
+> stays put long enough to act on.
+
+---
+
 ## Suite 9 — Cleanup
 
 Tear down all test state created during the plan.
