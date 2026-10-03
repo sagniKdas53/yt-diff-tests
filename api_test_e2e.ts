@@ -80,6 +80,10 @@ const FAILED_PLAYLIST_URL =
 const SLOW_PLAYLIST_URL =
   "https://mock-tube/playlists/slow-playlist.rss?list=1";
 const SLOW_VIDEO_URL = "https://mock-tube/slow/video-slow.mp4";
+// Ordinary speed, and never transferred: it exists to be indexed, queued
+// behind the slow one, and cancelled before it takes a slot. A second
+// megabyte of fixture to download nothing with is not worth keeping.
+const SLOW_QUEUE_VIDEO_URL = "https://mock-tube/videos/video-slow-2.mp4";
 
 const DUP_VIDEO_URL = "https://mock-tube/videos/video-dup.mp4";
 const E7_VIDEO_1_URL = "https://mock-tube/videos/video-e7-1.mp4";
@@ -2688,7 +2692,7 @@ Deno.test({
       body: JSON.stringify({ urlList: [SLOW_PLAYLIST_URL], chunkSize: 2 }),
     });
     await resp.text();
-    await waitForSubCount(SLOW_PLAYLIST_URL, 1);
+    await waitForSubCount(SLOW_PLAYLIST_URL, 2);
   },
 });
 
@@ -2908,10 +2912,13 @@ Deno.test(
         (j) => j.state === "running",
       );
 
+      // A different video, because a second request for the same URL is
+      // deduplicated before it ever reaches the queue — the same video twice
+      // is one job, not a job and a wait for it.
       const second = apiRequest("/download", {
         method: "POST",
         body: JSON.stringify({
-          urlList: [SLOW_VIDEO_URL],
+          urlList: [SLOW_QUEUE_VIDEO_URL],
           playlistUrl: SLOW_PLAYLIST_URL,
         }),
       });
@@ -2919,7 +2926,7 @@ Deno.test(
 
       const queued = await waitForJob(
         "download",
-        SLOW_VIDEO_URL,
+        SLOW_QUEUE_VIDEO_URL,
         (j) => j.state === "queued",
       );
       assertNotEquals(queued.id, running.id);

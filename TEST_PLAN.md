@@ -1515,11 +1515,20 @@ Pausing, resuming and cancelling a job that is genuinely in flight.
 
 **Playlist:** `Slow Transfer`\
 **URL:** `https://mock-tube/playlists/slow-playlist.rss?list=1`\
-**Video:** `https://mock-tube/slow/video-slow.mp4`
+**Video:** `https://mock-tube/slow/video-slow.mp4`\
+**Queued video:** `https://mock-tube/videos/video-slow-2.mp4`
 
-**Setup:** index the playlist (1 mapping). The video is not downloaded — the
+**Setup:** index the playlist (2 mappings). Neither video is downloaded — the
 tests do that themselves, because a download that has already finished is not
 one you can act on.
+
+The playlist holds two videos on purpose. The first is the throttled one, and
+every test that needs a transfer in flight uses it. The second is ordinary speed
+and is only ever indexed: it exists to sit queued behind the first and be
+cancelled before it takes a slot. A second megabyte of fixture to download
+nothing with is not worth keeping. It also has to be a _different_ video — a
+second request for the same URL is deduplicated before it reaches the queue, so
+the same video twice is one job rather than a job and a wait for it.
 
 **Between tests:** each one deletes the fetched file first (`POST /delsub` with
 `cleanUp`). yt-dlp skips a URL whose output is already on disk, and the pipeline
@@ -1621,8 +1630,8 @@ job is gone from the queue.
 
 **Endpoint:** `POST /jobaction`
 
-**Setup:** request the video twice. `MAX_DOWNLOADS=1`, so the first holds the
-slot and the second is queued behind it.
+**Setup:** request both videos. `MAX_DOWNLOADS=1`, so the throttled one holds
+the only slot and the second is queued behind it.
 
 **Assert** on the queued job: a distinct `id` and `queuePosition > 0`.
 Cancelling it answers `cancelled` with `partialDeleted === false`.

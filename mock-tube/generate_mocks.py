@@ -34,12 +34,23 @@ def create_video(name):
         print(f"Creating {name}...")
         subprocess.run(["ffmpeg", "-f", "lavfi", "-i", "color=c=black:s=16x16:d=1", "-c:v", "libx264", "-tune", "stillimage", "-pix_fmt", "yuv420p", path, "-y"], capture_output=True)
 
-def create_rss(name, title, videos, skip_videos=None, prefix="videos/"):
+def create_rss(name, title, videos, skip_videos=None, slow=None):
+    """Writes one feed.
+
+    `slow` names the videos served from the throttled path rather than the
+    ordinary one, so a feed can hold both: a job-control test needs a video it
+    can watch transferring and a second one that merely has to be indexed, and
+    the second does not need to be slow because it never gets far enough to
+    transfer anything.
+    """
     if skip_videos is None:
         skip_videos = set()
+    if slow is None:
+        slow = set()
     path = f"{base_dir}/playlists/{name}"
     items = ""
     for i, vid in enumerate(videos):
+        prefix = "slow/" if vid in slow else "videos/"
         if vid not in skip_videos:
             if prefix == "slow/":
                 create_slow_video(vid)
@@ -76,9 +87,16 @@ create_rss("dup-test-1.rss", "Dup Test", ["video-dup.mp4", "video-dup.mp4"])
 # Suite 2: Dup Test 2 (1 item overlapping)
 create_rss("dup-test-2.rss", "Dup Test 2", ["video-dup.mp4"])
 
-# Job control: one video served slowly, so a test can act on it while it runs.
-create_rss("slow-playlist.rss", "Slow Transfer", ["video-slow.mp4"],
-           prefix="slow/")
+# Job control: one video served slowly, so a test can act on it while it runs,
+# and an ordinary one beside it. The second only has to be indexed — it is
+# there to be queued behind the first and cancelled before it starts, and a
+# second megabyte of fixture to download nothing with is not worth keeping.
+create_rss(
+    "slow-playlist.rss",
+    "Slow Transfer",
+    ["video-slow.mp4", "video-slow-2.mp4"],
+    slow={"video-slow.mp4"},
+)
 
 # Suite 3: E7 Shorts
 create_rss("e7-shorts.rss", "E7 Shorts", ["video-e7-1.mp4", "video-e7-2.mp4"])
