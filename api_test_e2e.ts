@@ -2739,13 +2739,19 @@ Deno.test(
   tracked(
     "TC-16.2 — pausing a running download keeps the bytes it has",
     async () => {
+      // Waited for rather than assumed: a pause is only worth testing on a
+      // transfer that has actually moved something, and the counter is the
+      // only honest evidence of that.
       const job = await waitForJob(
         "download",
         SLOW_VIDEO_URL,
-        (j) => j.state === "running",
+        (j) =>
+          ((j.progress as Record<string, number> | null)?.downloadedBytes ??
+            0) >
+            0,
       );
-      const downloaded = (job.progress as Record<string, number> | null)
-        ?.downloadedBytes ?? 0;
+      const downloaded =
+        (job.progress as Record<string, number>).downloadedBytes;
       assertEquals(downloaded > 0, true);
 
       const result = await actOnJob(job.id as string, "pause");
@@ -2820,7 +2826,10 @@ Deno.test(
       const running = await waitForJob(
         "download",
         SLOW_VIDEO_URL,
-        (j) => j.state === "running",
+        (j) =>
+          ((j.progress as Record<string, number> | null)?.downloadedBytes ??
+            0) >
+            0,
       );
 
       const paused = await actOnJob(running.id as string, "pause");
