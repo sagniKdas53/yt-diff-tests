@@ -2382,6 +2382,195 @@ Deno.test(
   ),
 );
 
+// Suite 15 — Bot-facing sidecar, keep, cancel and locate endpoints
+//
+// The four endpoints the chat bot and the web UI gained in exchange for the
+// ability to see what a download missed, keep a file, stop a job, and open a
+// link to any page of a list.
+Deno.test(
+  "Setup Suite 15: Index and download a video to act on",
+  tracked("Setup Suite 15: Index and download a video to act on", async () => {
+    await (await apiRequest("/list", {
+      method: "POST",
+      body: JSON.stringify({
+        urlList: [PUBLIC_DUP_TEST_PLAYLIST_URL],
+        chunkSize: 9,
+        monitoringType: "N/A",
+        sleep: true,
+      }),
+    })).text();
+    await waitForSubCount(PUBLIC_DUP_TEST_PLAYLIST_URL, 2);
+
+    const resp = await apiRequest("/download", {
+      method: "POST",
+      body: JSON.stringify({
+        urlList: [DUP_VIDEO_URL],
+        playListUrl: PUBLIC_DUP_TEST_PLAYLIST_URL,
+      }),
+    });
+    assertEquals((await resp.json()).status, "success");
+    await waitForDownloaded(PUBLIC_DUP_TEST_PLAYLIST_URL, DUP_VIDEO_URL);
+  }),
+);
+
+Deno.test(
+  "TC-15.1 — A completed download reports itself complete",
+  tracked(
+    "TC-15.1 — A completed download reports itself complete",
+    async () => {
+      const json = await (await apiRequest("/getsub", {
+        method: "POST",
+        body: JSON.stringify({
+          start: 0,
+          stop: 8,
+          sortDownloaded: false,
+          query: "",
+          url: PUBLIC_DUP_TEST_PLAYLIST_URL,
+        }),
+      })).json();
+      const meta = json.rows[0].video_metadatum;
+
+      // The fixture has no subtitles, no chapters, no description and no
+      // comments, and none of those is something we failed to fetch: an extra
+      // the source never offered is not a gap.
+      assertEquals(meta.isMetaDataSynced, true);
+      assertEquals(meta.missingExtras, null);
+      // ffprobe ran and found nothing, which is the common case rather than a
+      // failure.
+      assertEquals(meta.chapters, null);
+      // No bot has ever fetched this file, so nothing will reap it.
+      assertEquals(meta.botExpiresAt, null);
+    },
+  ),
+);
+
+Deno.test(
+  "TC-15.2 — /syncextras runs nothing when there is nothing missing",
+  tracked(
+    "TC-15.2 — /syncextras runs nothing when there is nothing missing",
+    async () => {
+      const resp = await apiRequest("/syncextras", {
+        method: "POST",
+        body: JSON.stringify({ videoUrl: DUP_VIDEO_URL }),
+      });
+      assertEquals(resp.status, 200);
+      const json = await resp.json();
+      assertEquals(json.url, DUP_VIDEO_URL);
+      assertEquals(json.status, "unchanged");
+      assertEquals(json.recovered, []);
+      assertEquals(json.stillMissing, []);
+    },
+  ),
+);
+
+Deno.test(
+  "TC-15.3 — /syncextras refuses a body with no video",
+  tracked("TC-15.3 — /syncextras refuses a body with no video", async () => {
+    // The URL reaches yt-dlp as an argument, so a missing one is a bad request
+    // rather than a run against nothing.
+    const resp = await apiRequest("/syncextras", {
+      method: "POST",
+      body: JSON.stringify({}),
+    });
+    assertEquals(resp.status, 400);
+    await resp.text();
+  }),
+);
+
+Deno.test(
+  "TC-15.4 — /keepfile says plainly that there was nothing to keep",
+  tracked(
+    "TC-15.4 — /keepfile says plainly that there was nothing to keep",
+    async () => {
+      const resp = await apiRequest("/keepfile", {
+        method: "POST",
+        body: JSON.stringify({ videoUrl: DUP_VIDEO_URL }),
+      });
+      assertEquals(resp.status, 200);
+      const json = await resp.json();
+      assertEquals(json.status, "success");
+      // No bot has fetched this file, so the honest answer is zero. The UI
+      // says so out loud rather than dressing it up as a success.
+      assertEquals(json.kept, 0);
+    },
+  ),
+);
+
+Deno.test(
+  "TC-15.5 — /locate names the list and the page a video opens in",
+  tracked(
+    "TC-15.5 — /locate names the list and the page a video opens in",
+    async () => {
+      const resp = await apiRequest("/locate", {
+        method: "POST",
+        body: JSON.stringify({
+          videoUrl: DUP_VIDEO_URL,
+          pageSize: 8,
+          sortDownloaded: false,
+        }),
+      });
+      assertEquals(resp.status, 200);
+      const json = await resp.json();
+      assertEquals(json.videoUrl, DUP_VIDEO_URL);
+      // The same helper the download used to pick a folder, so the link opens
+      // the list the file actually landed in.
+      assertEquals(json.playlistUrl, PUBLIC_DUP_TEST_PLAYLIST_URL);
+      assertEquals(json.page, 0);
+    },
+  ),
+);
+
+Deno.test(
+  "TC-15.6 — /locate reports a video that belongs to no list",
+  tracked(
+    "TC-15.6 — /locate reports a video that belongs to no list",
+    async () => {
+      const resp = await apiRequest("/locate", {
+        method: "POST",
+        body: JSON.stringify({
+          videoUrl: "https://mock-tube/videos/not-indexed.mp4",
+          pageSize: 8,
+        }),
+      });
+      assertEquals(resp.status, 200);
+      const json = await resp.json();
+      // Null rather than a guess: the caller drops the link instead of
+      // opening a list that does not hold this video.
+      assertEquals(json.playlistUrl, null);
+      assertEquals(json.page, null);
+    },
+  ),
+);
+
+Deno.test(
+  "TC-15.7 — /cancel says there was nothing to stop",
+  tracked("TC-15.7 — /cancel says there was nothing to stop", async () => {
+    const resp = await apiRequest("/cancel", {
+      method: "POST",
+      body: JSON.stringify({ url: DUP_VIDEO_URL, kind: "download" }),
+    });
+    assertEquals(resp.status, 200);
+    const json = await resp.json();
+    assertEquals(json.status, "success");
+    assertEquals(json.kind, "download");
+    // A 200 here would leave a client that hid a button believing the work
+    // went away.
+    assertEquals(json.outcome, "not-found");
+  }),
+);
+
+Deno.test(
+  "TC-15.8 — /cancel refuses a kind it does not know",
+  tracked("TC-15.8 — /cancel refuses a kind it does not know", async () => {
+    const resp = await apiRequest("/cancel", {
+      method: "POST",
+      body: JSON.stringify({ url: DUP_VIDEO_URL, kind: "everything" }),
+    });
+    assertEquals(resp.status, 400);
+    await resp.text();
+  }),
+);
+
 // Suite 9 — Cleanup
 Deno.test(
   "TC-9.1 — Remove remaining videos from 'None' playlist",
