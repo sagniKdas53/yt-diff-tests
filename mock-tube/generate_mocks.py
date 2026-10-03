@@ -4,6 +4,29 @@ import subprocess
 base_dir = "mock-tube/public"
 os.makedirs(f"{base_dir}/playlists", exist_ok=True)
 os.makedirs(f"{base_dir}/videos", exist_ok=True)
+os.makedirs(f"{base_dir}/slow", exist_ok=True)
+
+def create_slow_video(name):
+    """A clip big enough that a throttled fetch of it takes real seconds.
+
+    Every other fixture here is 2 KB and lands in milliseconds, which is
+    correct for "did this file arrive" and useless for "is this still running
+    when I look". Job-control tests need a transfer that is provably in flight,
+    so this one is big and nginx serves it at a capped rate.
+    """
+    path = f"{base_dir}/slow/{name}"
+    if not os.path.exists(path):
+        print(f"Creating slow/{name}...")
+        # testsrc rather than a flat colour: a black frame compresses to a
+        # few kilobytes no matter how long it runs, which would defeat the
+        # point of a fixture whose whole purpose is to take real seconds.
+        subprocess.run(
+            ["ffmpeg", "-f", "lavfi", "-i", "testsrc=size=640x480:rate=30",
+             "-t", "30", "-c:v", "libx264", "-pix_fmt", "yuv420p",
+             "-b:v", "900k", path, "-y"],
+            capture_output=True,
+        )
+
 
 def create_video(name):
     path = f"{base_dir}/videos/{name}"
@@ -11,19 +34,29 @@ def create_video(name):
         print(f"Creating {name}...")
         subprocess.run(["ffmpeg", "-f", "lavfi", "-i", "color=c=black:s=16x16:d=1", "-c:v", "libx264", "-tune", "stillimage", "-pix_fmt", "yuv420p", path, "-y"], capture_output=True)
 
-def create_rss(name, title, videos, skip_videos=None):
+def create_rss(name, title, videos, skip_videos=None, prefix="videos/"):
     if skip_videos is None:
         skip_videos = set()
     path = f"{base_dir}/playlists/{name}"
     items = ""
     for i, vid in enumerate(videos):
         if vid not in skip_videos:
-            create_video(vid)
+            if prefix == "slow/":
+                create_slow_video(vid)
+            else:
+                create_video(vid)
+        # The real size on disk, not a constant: yt-dlp sizes its progress
+        # bar from the enclosure, and a slow fixture with a 2 KB length would
+        # report a total it can never reach. A file that was deliberately not
+        # created keeps the old default, so the fixtures that test a 404 are
+        # not changed by this.
+        media = f"{base_dir}/{prefix}{vid}"
+        length = os.path.getsize(media) if os.path.exists(media) else 2237
         items += f"""
   <item>
     <title>{vid} - {title}</title>
-    <link>https://mock-tube/videos/{vid}</link>
-    <enclosure url="https://mock-tube/videos/{vid}" length="2237" type="video/mp4" />
+    <link>https://mock-tube/{prefix}{vid}</link>
+    <enclosure url="https://mock-tube/{prefix}{vid}" length="{length}" type="video/mp4" />
   </item>"""
     
     content = f"""<?xml version="1.0" encoding="UTF-8" ?>
@@ -42,6 +75,10 @@ create_rss("dup-test-1.rss", "Dup Test", ["video-dup.mp4", "video-dup.mp4"])
 
 # Suite 2: Dup Test 2 (1 item overlapping)
 create_rss("dup-test-2.rss", "Dup Test 2", ["video-dup.mp4"])
+
+# Job control: one video served slowly, so a test can act on it while it runs.
+create_rss("slow-playlist.rss", "Slow Transfer", ["video-slow.mp4"],
+           prefix="slow/")
 
 # Suite 3: E7 Shorts
 create_rss("e7-shorts.rss", "E7 Shorts", ["video-e7-1.mp4", "video-e7-2.mp4"])
