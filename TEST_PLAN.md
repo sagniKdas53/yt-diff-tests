@@ -1509,6 +1509,140 @@ hid a button believing the work went away.
 
 ---
 
+## Suite 16 — Job Control
+
+Pausing, resuming and cancelling a job that is genuinely in flight.
+
+**Playlist:** `Slow Transfer`\
+**URL:** `https://mock-tube/playlists/slow-playlist.rss?list=1`\
+**Video:** `https://mock-tube/slow/video-slow.mp4`
+
+**Setup:** index the playlist (1 mapping). The video is not downloaded — the
+tests do that themselves, because a download that has already finished is not
+one you can act on.
+
+> **Why this fixture exists.** Every other mock video is 2 KB and lands in
+> milliseconds. That answers "did this file arrive" and cannot answer "is this
+> still running when I ask", which is the question every test below has to ask
+> before it acts. nginx caps `/slow/` at 100 KB/s, so this 1,071,444-byte file
+> takes exactly ten seconds to fetch — a window wide enough to poll and act, and
+> narrow enough not to slow the suite down.
+
+**Environment:** `MAX_DOWNLOADS=1`, so a second request for the same video is
+provably still queued while the first holds the only slot.
+
+---
+
+### TC-16.1 — `/queuestatus` reports a running download with real progress
+
+**Endpoint:** `POST /queuestatus`
+
+**Assert** on the download entry for the slow video:
+
+- `state === "running"`, `kind === "download"`, an `id` is present
+- `progress.totalBytes === 1071444` — the real size, from the enclosure
+- `0 < progress.downloadedBytes < progress.totalBytes`
+
+> A total at or past the end would mean the run is already over, and a bar drawn
+> from a number nobody measured is not progress. The bytes have to have come off
+> the throttled connection for this to mean anything.
+
+---
+
+### TC-16.2 — Pausing a running download keeps the bytes it has
+
+**Endpoint:** `POST /jobaction`
+
+**Request:** `{ "id": "<running job>", "action": "pause" }`
+
+**Assert:**
+
+- `outcome === "paused"`
+- `partialDeleted === false` — pausing keeps the partial file
+- the job is then reported with `state === "paused"` and the **same id**
+- and it is no longer reported as `running`
+
+> The same id matters: the drawer keys on it, and a pause that minted a new one
+> would make the row the user pressed on disappear. The last assertion is what
+> makes the first two mean anything — "paused" over a job that is still fetching
+> would pass them.
+
+---
+
+### TC-16.3 — A paused download resumes under the same job
+
+**Endpoint:** `POST /jobaction`
+
+**Request:** `{ "id": "<paused job>", "action": "resume" }`
+
+**Assert:** `outcome === "resumed"`, the job reappears as `running` or `queued`
+under the same `id`, and the download goes on to complete.
+
+---
+
+### TC-16.4 — Cancelling a paused download throws the kept bytes away
+
+**Endpoint:** `POST /jobaction`
+
+**Request:** `{ "id": "<job>", "action": "pause" }` then
+`{ "id": "<same id>", "action": "cancel" }`
+
+**Assert:** `outcome === "cancelled"` and **`partialDeleted === true`**, and the
+job is gone from the queue.
+
+> Cancelling a paused job is the one case where deleting is the whole point:
+> those bytes are on disk precisely because a pause left them. A cancel that
+> kept them would leak half a video every time somebody changed their mind.
+
+---
+
+### TC-16.5 — A running listing is paused and resumed like a download
+
+**Endpoint:** `POST /jobaction`
+
+**Request:** pause, then resume, then cancel a running listing.
+
+**Assert:** each answers `paused`, `resumed`, `cancelled`; a pause reports
+`partialDeleted === false`.
+
+> A listing writes no files — it streams JSON into the database and persists
+> each chunk as it goes — so there is never anything to delete. Reporting `true`
+> here would be claiming a deletion that did not happen.
+
+---
+
+### TC-16.6 — A queued download is cancelled for free
+
+**Endpoint:** `POST /jobaction`
+
+**Setup:** request the video twice. `MAX_DOWNLOADS=1`, so the first holds the
+slot and the second is queued behind it.
+
+**Assert** on the queued job: a distinct `id` and `queuePosition > 0`.
+Cancelling it answers `cancelled` with `partialDeleted === false`.
+
+> Nothing to kill and nothing to delete — this is the "at no cost" the drawer
+> offers, and `partialDeleted` must not claim otherwise. A `queuePosition` of 0
+> would mean the drawer is telling someone waiting that they are first.
+
+---
+
+### TC-16.7 — `/jobaction` refuses what it cannot do
+
+**Endpoint:** `POST /jobaction`
+
+**Request:** `{ "id": "no-such-job", "action": "pause" }` and
+`{ "id": "no-such-job", "action": "detonate" }`
+
+**Assert:** the first answers `200` with `outcome === "not-found"`; the second
+is `400`.
+
+> `not-found` is a normal answer, not an error: the drawer hides the buttons a
+> job cannot take, so reaching it means the last poll was stale. It stays a
+> `200` so the client can show the sentence without an error branch.
+
+---
+
 ## Suite 9 — Cleanup
 
 Tear down all test state created during the plan.

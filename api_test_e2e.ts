@@ -77,6 +77,10 @@ const ENGINEERING_PLAYLIST_URL =
 const FAILED_PLAYLIST_URL =
   "https://mock-tube/playlists/failed-playlist.rss?list=1";
 
+const SLOW_PLAYLIST_URL =
+  "https://mock-tube/playlists/slow-playlist.rss?list=1";
+const SLOW_VIDEO_URL = "https://mock-tube/slow/video-slow.mp4";
+
 const DUP_VIDEO_URL = "https://mock-tube/videos/video-dup.mp4";
 const E7_VIDEO_1_URL = "https://mock-tube/videos/video-e7-1.mp4";
 const E7_VIDEO_2_URL = "https://mock-tube/videos/video-e7-2.mp4";
@@ -2600,6 +2604,319 @@ Deno.test(
     assertEquals(resp.status, 400);
     await resp.text();
   }),
+);
+
+// Suite 16 - Job control. Runs before Suite 9, which deletes everything.
+//
+// The fixture here is the one nginx throttles to 100 KB/s, so the download
+// below is provably still running for about ten seconds. That window is what
+// makes these tests deterministic rather than a race: every other mock video
+// lands in milliseconds, and there is no honest way to pause one of those.
+
+/** One read of the queue, as the drawer would see it. */
+async function queueSnapshot() {
+  const resp = await apiRequest("/queuestatus", { method: "POST", body: "{}" });
+  assertEquals(resp.status, 200);
+  return await resp.json();
+}
+
+/**
+ * Waits for one job to reach a state, and returns it.
+ *
+ * Waiting for the state rather than assuming it is the whole point: a test
+ * that sleeps and hopes is a test that fails on a loaded CI machine.
+ */
+async function waitForJob(
+  kind: "download" | "listing",
+  url: string,
+  predicate: (job: Record<string, unknown>) => boolean,
+  timeoutMs: number = DEFAULT_TIMEOUT,
+) {
+  let found: Record<string, unknown> | undefined;
+  await waitFor(async () => {
+    const snap = await queueSnapshot();
+    const jobs = snap[kind === "download" ? "queue" : "listings"];
+    found = Array.isArray(jobs)
+      ? jobs.find((job: Record<string, unknown>) =>
+        job.url === url && predicate(job)
+      )
+      : undefined;
+    return Boolean(found);
+  }, timeoutMs);
+  assertExists(found);
+  return found as Record<string, unknown>;
+}
+
+/** One job action, as the drawer's buttons issue it. */
+async function actOnJob(id: string, action: string) {
+  const resp = await apiRequest("/jobaction", {
+    method: "POST",
+    body: JSON.stringify({ id, action }),
+  });
+  assertEquals(resp.status, 200);
+  return await resp.json();
+}
+
+Deno.test({
+  name: "Setup Suite 16: index a video that is slow enough to act on",
+  async fn() {
+    const resp = await apiRequest("/list", {
+      method: "POST",
+      body: JSON.stringify({ urlList: [SLOW_PLAYLIST_URL], chunkSize: 2 }),
+    });
+    await resp.text();
+    await waitForSubCount(SLOW_PLAYLIST_URL, 1);
+  },
+});
+
+Deno.test(
+  "TC-16.1 — /queuestatus reports a running download with real progress",
+  tracked(
+    "TC-16.1 — /queuestatus reports a running download with real progress",
+    async () => {
+      // Started but deliberately not awaited: the point is to look at it while
+      // it is still fetching.
+      const started = apiRequest("/download", {
+        method: "POST",
+        body: JSON.stringify({
+          urlList: [SLOW_VIDEO_URL],
+          playlistUrl: SLOW_PLAYLIST_URL,
+        }),
+      });
+      await (await started).text();
+
+      const job = await waitForJob(
+        "download",
+        SLOW_VIDEO_URL,
+        (j) => j.state === "running",
+      );
+      assertEquals(job.kind, "download");
+      assertExists(job.id);
+
+      // Bytes actually moved off the throttled connection, not a bar someone
+      // invented: the file is 1,071,444 bytes, so anything at or past the end
+      // would mean the run is already over.
+      const progress = (await waitForJob(
+        "download",
+        SLOW_VIDEO_URL,
+        (j) =>
+          ((j.progress as Record<string, number> | null)?.downloadedBytes ??
+            0) > 0,
+      )).progress as Record<string, number>;
+      assertEquals(progress.totalBytes, 1071444);
+      assertEquals(progress.downloadedBytes < progress.totalBytes, true);
+      assertEquals(progress.downloadedBytes > 0, true);
+    },
+  ),
+);
+
+Deno.test(
+  "TC-16.2 — pausing a running download keeps the bytes it has",
+  tracked(
+    "TC-16.2 — pausing a running download keeps the bytes it has",
+    async () => {
+      const job = await waitForJob(
+        "download",
+        SLOW_VIDEO_URL,
+        (j) => j.state === "running",
+      );
+      const downloaded = (job.progress as Record<string, number> | null)
+        ?.downloadedBytes ?? 0;
+      assertEquals(downloaded > 0, true);
+
+      const result = await actOnJob(job.id as string, "pause");
+      assertEquals(result.outcome, "paused");
+      // The whole distinction: pausing keeps the partial file so a resume can
+      // pick it up. Cancelling is the one that throws bytes away.
+      assertEquals(result.partialDeleted, false);
+
+      const paused = await waitForJob(
+        "download",
+        SLOW_VIDEO_URL,
+        (j) => j.state === "paused",
+      );
+      // Still reported, not dropped: a paused job is something the drawer has
+      // to be able to resume, under the same id it was paused as.
+      assertEquals(paused.id, job.id);
+
+      // And it really has stopped, which is what makes the assertion above
+      // mean anything.
+      await waitFor(async () => {
+        const snap = await queueSnapshot();
+        return !snap.queue.some((j: Record<string, unknown>) =>
+          j.url === SLOW_VIDEO_URL && j.state === "running"
+        );
+      });
+    },
+  ),
+);
+
+Deno.test(
+  "TC-16.3 — a paused download resumes under the same job",
+  tracked(
+    "TC-16.3 — a paused download resumes under the same job",
+    async () => {
+      const paused = await waitForJob(
+        "download",
+        SLOW_VIDEO_URL,
+        (j) => j.state === "paused",
+      );
+
+      const result = await actOnJob(paused.id as string, "resume");
+      assertEquals(result.outcome, "resumed");
+
+      // Same id, not a new job: the drawer keys on it, and a resume that
+      // minted a new one would make the row the user pressed on vanish.
+      const again = await waitForJob(
+        "download",
+        SLOW_VIDEO_URL,
+        (j) => j.state === "running" || j.state === "queued",
+      );
+      assertEquals(again.id, paused.id);
+
+      await waitForDownloaded(SLOW_PLAYLIST_URL, SLOW_VIDEO_URL);
+    },
+  ),
+);
+
+Deno.test(
+  "TC-16.4 — cancelling a paused download throws the kept bytes away",
+  tracked(
+    "TC-16.4 — cancelling a paused download throws the kept bytes away",
+    async () => {
+      const started = apiRequest("/download", {
+        method: "POST",
+        body: JSON.stringify({
+          urlList: [SLOW_VIDEO_URL],
+          playlistUrl: SLOW_PLAYLIST_URL,
+        }),
+      });
+      await (await started).text();
+      const running = await waitForJob(
+        "download",
+        SLOW_VIDEO_URL,
+        (j) => j.state === "running",
+      );
+
+      const paused = await actOnJob(running.id as string, "pause");
+      assertEquals(paused.outcome, "paused");
+
+      // Cancelling a paused job is the one case where deleting is the whole
+      // point: those bytes are on disk precisely because a pause left them.
+      const cancelled = await actOnJob(running.id as string, "cancel");
+      assertEquals(cancelled.outcome, "cancelled");
+      assertEquals(cancelled.partialDeleted, true);
+
+      await waitFor(async () => {
+        const snap = await queueSnapshot();
+        return !snap.queue.some((j: Record<string, unknown>) =>
+          j.url === SLOW_VIDEO_URL
+        );
+      });
+    },
+  ),
+);
+
+Deno.test(
+  "TC-16.5 — a running listing is paused and resumed like a download",
+  tracked(
+    "TC-16.5 — a running listing is paused and resumed like a download",
+    async () => {
+      const started = apiRequest("/list", {
+        method: "POST",
+        body: JSON.stringify({
+          urlList: [PUBLIC_PLAYLIST_BIG_URL],
+          chunkSize: 4,
+          monitoringType: "Full",
+        }),
+      });
+      await (await started).text();
+
+      const running = await waitForJob(
+        "listing",
+        PUBLIC_PLAYLIST_BIG_URL,
+        (j) => j.state === "running",
+      );
+      assertEquals(running.kind, "listing");
+
+      const paused = await actOnJob(running.id as string, "pause");
+      assertEquals(paused.outcome, "paused");
+      // A listing writes no files, so there is never anything to delete —
+      // not on a pause and not on a cancel.
+      assertEquals(paused.partialDeleted, false);
+
+      const resumed = await actOnJob(running.id as string, "resume");
+      assertEquals(resumed.outcome, "resumed");
+      await actOnJob(running.id as string, "cancel");
+    },
+  ),
+);
+
+Deno.test(
+  "TC-16.6 — a queued download is cancelled for free",
+  tracked(
+    "TC-16.6 — a queued download is cancelled for free",
+    async () => {
+      // MAX_DOWNLOADS is 1 in this environment, so the first of these holds
+      // the only slot and the second is provably still waiting for it.
+      const first = apiRequest("/download", {
+        method: "POST",
+        body: JSON.stringify({
+          urlList: [SLOW_VIDEO_URL],
+          playlistUrl: SLOW_PLAYLIST_URL,
+        }),
+      });
+      await (await first).text();
+      const running = await waitForJob(
+        "download",
+        SLOW_VIDEO_URL,
+        (j) => j.state === "running",
+      );
+
+      const second = apiRequest("/download", {
+        method: "POST",
+        body: JSON.stringify({
+          urlList: [SLOW_VIDEO_URL],
+          playlistUrl: SLOW_PLAYLIST_URL,
+        }),
+      });
+      await (await second).text();
+
+      const queued = await waitForJob(
+        "download",
+        SLOW_VIDEO_URL,
+        (j) => j.state === "queued",
+      );
+      assertNotEquals(queued.id, running.id);
+      assertEquals((queued.queuePosition as number) > 0, true);
+
+      // Nothing to kill and nothing to delete: this is the "at no cost" the
+      // drawer offers, and it must not claim otherwise.
+      const cancelled = await actOnJob(queued.id as string, "cancel");
+      assertEquals(cancelled.outcome, "cancelled");
+      assertEquals(cancelled.partialDeleted, false);
+
+      await actOnJob(running.id as string, "cancel");
+    },
+  ),
+);
+
+Deno.test(
+  "TC-16.7 — /jobaction refuses what it cannot do",
+  tracked(
+    "TC-16.7 — /jobaction refuses what it cannot do",
+    async () => {
+      const missing = await actOnJob("no-such-job", "pause");
+      assertEquals(missing.outcome, "not-found");
+
+      const unknown = await apiRequest("/jobaction", {
+        method: "POST",
+        body: JSON.stringify({ id: "no-such-job", action: "detonate" }),
+      });
+      assertEquals(unknown.status, 400);
+      await unknown.text();
+    },
+  ),
 );
 
 // Suite 9 — Cleanup
