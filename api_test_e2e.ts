@@ -2576,7 +2576,7 @@ Deno.test(
       // covered where it can be deterministic instead — the backend's own
       // pipeline tests, and the pause/cancel round trip in the job-control
       // suite, where a paused job stays put long enough to act on.
-      for (const kind of ["download", "listing"]) {
+      for (const kind of ["download", "list"]) {
         const resp = await apiRequest("/cancel", {
           method: "POST",
           body: JSON.stringify({
@@ -2647,6 +2647,29 @@ async function waitForJob(
   return found as Record<string, unknown>;
 }
 
+/**
+ * Deletes the fetched file so the next download of this video really is one.
+ *
+ * yt-dlp skips a URL whose output file is already on disk, and the pipeline
+ * treats a skipped run as a success the moment it sees a file — so without
+ * this, every test after the first would watch a job that finishes in
+ * milliseconds and conclude the queue is broken. The mapping and the row are
+ * left alone, so the video stays indexed and the download resolves the way it
+ * would for a first-time fetch.
+ */
+async function clearFetchedSlowVideo() {
+  const resp = await apiRequest("/delsub", {
+    method: "POST",
+    body: JSON.stringify({
+      playListUrl: SLOW_PLAYLIST_URL,
+      videoUrls: [SLOW_VIDEO_URL],
+      cleanUp: true,
+    }),
+  });
+  assertEquals(resp.status, 200);
+  await resp.text();
+}
+
 /** One job action, as the drawer's buttons issue it. */
 async function actOnJob(id: string, action: string) {
   const resp = await apiRequest("/jobaction", {
@@ -2674,6 +2697,7 @@ Deno.test(
   tracked(
     "TC-16.1 — /queuestatus reports a running download with real progress",
     async () => {
+      await clearFetchedSlowVideo();
       // Started but deliberately not awaited: the point is to look at it while
       // it is still fetching.
       const started = apiRequest("/download", {
@@ -2784,6 +2808,7 @@ Deno.test(
   tracked(
     "TC-16.4 — cancelling a paused download throws the kept bytes away",
     async () => {
+      await clearFetchedSlowVideo();
       const started = apiRequest("/download", {
         method: "POST",
         body: JSON.stringify({
@@ -2857,6 +2882,7 @@ Deno.test(
   tracked(
     "TC-16.6 — a queued download is cancelled for free",
     async () => {
+      await clearFetchedSlowVideo();
       // MAX_DOWNLOADS is 1 in this environment, so the first of these holds
       // the only slot and the second is provably still waiting for it.
       const first = apiRequest("/download", {

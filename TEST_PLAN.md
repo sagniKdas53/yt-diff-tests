@@ -1521,6 +1521,12 @@ Pausing, resuming and cancelling a job that is genuinely in flight.
 tests do that themselves, because a download that has already finished is not
 one you can act on.
 
+**Between tests:** each one deletes the fetched file first (`POST /delsub` with
+`cleanUp`). yt-dlp skips a URL whose output is already on disk, and the pipeline
+calls a skipped run a success the moment it sees a file, so without this every
+test after the first would watch a job finish in milliseconds. The mapping and
+the row stay put, so the video is still indexed.
+
 > **Why this fixture exists.** Every other mock video is 2 KB and lands in
 > milliseconds. That answers "did this file arrive" and cannot answer "is this
 > still running when I ask", which is the question every test below has to ask
