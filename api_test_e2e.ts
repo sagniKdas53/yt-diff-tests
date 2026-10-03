@@ -2674,6 +2674,78 @@ async function clearFetchedSlowVideo() {
   await resp.text();
 }
 
+/** The jobs the server still holds for the throttled fixture, in any state. */
+async function slowVideoJobs(): Promise<Record<string, unknown>[]> {
+  const snap = await queueSnapshot();
+  return (snap.queue as Record<string, unknown>[]).filter(
+    (job) => job.url === SLOW_VIDEO_URL,
+  );
+}
+
+/**
+ * Cancels whatever the throttled fixture still has in flight, and waits until
+ * the server has forgotten it.
+ *
+ * A leftover job is not a harmless leftover. `/download` drops a url that is
+ * already running as a duplicate rather than queueing it, so a test asking
+ * for "its own" transfer would end up watching somebody else's — or, with the
+ * single slot already taken, waiting out its timeout on nothing at all. A
+ * paused job counts the same: it holds its `.part` and is still reported under
+ * the same url, so `waitForJob` would cheerfully hand back an id this test did
+ * not create. Cancelling before the fetched file is deleted is the other
+ * ordering that matters, so the delete never races a transfer still writing.
+ */
+async function clearSlowVideoJobs() {
+  for (const job of await slowVideoJobs()) {
+    await actOnJob(job.id as string, "cancel");
+  }
+  await waitFor(async () => (await slowVideoJobs()).length === 0);
+}
+
+/**
+ * Indexes the throttled playlist and starts this test's own transfer of it,
+ * returned once it has actually moved some bytes.
+ *
+ * A helper rather than the same block pasted into each caller: the order *is*
+ * the content (index → drop stale jobs → delete the fetched file → start →
+ * wait for bytes), and a copy that reorders two steps is a flake rather than a
+ * shorter test. Calling it from every test is what leaves each one runnable on
+ * its own, which is how anyone actually runs one when it fails.
+ */
+async function startSlowVideoDownload() {
+  const resp = await apiRequest("/list", {
+    method: "POST",
+    body: JSON.stringify({ urlList: [SLOW_PLAYLIST_URL], chunkSize: 2 }),
+  });
+  await resp.text();
+  await waitForSubCount(SLOW_PLAYLIST_URL, 2);
+
+  await clearSlowVideoJobs();
+  await clearFetchedSlowVideo();
+
+  // Started but deliberately not awaited beyond the acknowledgement: the point
+  // is to look at the transfer while it is still fetching.
+  const started = apiRequest("/download", {
+    method: "POST",
+    body: JSON.stringify({
+      urlList: [SLOW_VIDEO_URL],
+      playlistUrl: SLOW_PLAYLIST_URL,
+    }),
+  });
+  await (await started).text();
+
+  // Waited for rather than assumed: a pause is only worth testing on a
+  // transfer that has already moved something, and the counter is the only
+  // honest evidence of that.
+  return await waitForJob(
+    "download",
+    SLOW_VIDEO_URL,
+    (j) =>
+      ((j.progress as Record<string, number> | null)?.downloadedBytes ?? 0) >
+        0,
+  );
+}
+
 /** One job action, as the drawer's buttons issue it. */
 async function actOnJob(id: string, action: string) {
   const resp = await apiRequest("/jobaction", {
@@ -2743,17 +2815,10 @@ Deno.test(
   tracked(
     "TC-16.2 — pausing a running download keeps the bytes it has",
     async () => {
-      // Waited for rather than assumed: a pause is only worth testing on a
-      // transfer that has actually moved something, and the counter is the
-      // only honest evidence of that.
-      const job = await waitForJob(
-        "download",
-        SLOW_VIDEO_URL,
-        (j) =>
-          ((j.progress as Record<string, number> | null)?.downloadedBytes ??
-            0) >
-            0,
-      );
+      // Its own transfer, not whichever one happens to be in flight: paused in
+      // a full suite and paused on its own are different tests, and only the
+      // second one is the one being claimed here.
+      const job = await startSlowVideoDownload();
       const downloaded =
         (job.progress as Record<string, number>).downloadedBytes;
       assertEquals(downloaded > 0, true);
@@ -2790,11 +2855,18 @@ Deno.test(
   tracked(
     "TC-16.3 — a paused download resumes under the same job",
     async () => {
+      // Its own transfer, and its own pause. What this pins is that a resume
+      // answers the job that was paused, which is only worth saying about a
+      // pause this test performed itself.
+      const running = await startSlowVideoDownload();
+      const pause = await actOnJob(running.id as string, "pause");
+      assertEquals(pause.outcome, "paused");
       const paused = await waitForJob(
         "download",
         SLOW_VIDEO_URL,
         (j) => j.state === "paused",
       );
+      assertEquals(paused.id, running.id);
 
       const result = await actOnJob(paused.id as string, "resume");
       assertEquals(result.outcome, "resumed");
@@ -2808,7 +2880,11 @@ Deno.test(
       );
       assertEquals(again.id, paused.id);
 
-      await waitForDownloaded(SLOW_PLAYLIST_URL, SLOW_VIDEO_URL);
+      // Longer than the default upper bound: nginx throttles this fixture to
+      // 100 KB/s, so even with the bytes a resume inherits the transfer needs
+      // roughly eleven seconds of wall clock, plus yt-dlp's own startup, and
+      // fifteen leaves no room for a loaded machine.
+      await waitForDownloaded(SLOW_PLAYLIST_URL, SLOW_VIDEO_URL, 30000);
     },
   ),
 );
@@ -2885,7 +2961,21 @@ Deno.test(
 
       const resumed = await actOnJob(running.id as string, "resume");
       assertEquals(resumed.outcome, "resumed");
-      await actOnJob(running.id as string, "cancel");
+
+      // The resume is accepted at once but the run itself starts on its own:
+      // a listing has to wait for the run it just replaced to settle, so the
+      // job is not back in the queue the instant this returns. Cancelling
+      // into that gap would answer `not-found` — a stale poll, not the
+      // outcome this test is about.
+      await waitForJob(
+        "listing",
+        PUBLIC_PLAYLIST_BIG_URL,
+        (j) => j.state === "running",
+      );
+
+      const cancelled = await actOnJob(running.id as string, "cancel");
+      assertEquals(cancelled.outcome, "cancelled");
+      assertEquals(cancelled.partialDeleted, false);
     },
   ),
 );

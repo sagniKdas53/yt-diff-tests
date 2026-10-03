@@ -25,6 +25,7 @@ def create_slow_video(name):
              "-t", "30", "-c:v", "libx264", "-pix_fmt", "yuv420p",
              "-b:v", "900k", path, "-y"],
             capture_output=True,
+            check=True,
         )
 
 

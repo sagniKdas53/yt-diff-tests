@@ -1543,8 +1543,8 @@ the row stay put, so the video is still indexed.
 > takes exactly ten seconds to fetch — a window wide enough to poll and act, and
 > narrow enough not to slow the suite down.
 
-**Environment:** `MAX_DOWNLOADS=1`, so a second request for the same video is
-provably still queued while the first holds the only slot.
+**Environment:** `MAX_DOWNLOADS=1`, so the throttled first video holds the only
+slot and the second, distinct video is provably still queued behind it.
 
 ---
 
@@ -1618,7 +1618,10 @@ job is gone from the queue.
 **Request:** pause, then resume, then cancel a running listing.
 
 **Assert:** each answers `paused`, `resumed`, `cancelled`; a pause reports
-`partialDeleted === false`.
+`partialDeleted === false`. The cancel waits for the resumed job to be back in
+the queue first — a listing resume returns `resumed` immediately but starts on
+its own once the run it replaced settles, and cancelling into that gap answers
+`not-found`.
 
 > A listing writes no files — it streams JSON into the database and persists
 > each chunk as it goes — so there is never anything to delete. Reporting `true`
