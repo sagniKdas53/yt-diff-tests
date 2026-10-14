@@ -91,6 +91,7 @@ const E7_VIDEO_2_URL = "https://mock-tube/videos/video-e7-2.mp4";
 const BIG_VIDEO_15_URL = "https://mock-tube/videos/video-big-15.mp4";
 const BIG_VIDEO_16_URL = "https://mock-tube/videos/video-big-16.mp4";
 const SINGLE_VIDEO_URL = "https://mock-tube/videos/video-single.mp4";
+const UNLISTED_LOCATE_VIDEO_URL = "https://mock-tube/videos/video-unlisted.mp4";
 
 // Polling timeouts (upper bounds — waitFor returns as soon as condition is met)
 const POLL_INTERVAL = 1000;
@@ -2610,6 +2611,56 @@ Deno.test(
   }),
 );
 
+Deno.test(
+  "TC-15.10 — /locate finds the page for an unlisted video in 'None'",
+  tracked(
+    "TC-15.10 — /locate finds the page for an unlisted video in 'None'",
+    async () => {
+      // An unlisted video has no public playlist URL, but exists in 'None'.
+      // /locate reports playlistUrl as null (matching unlisted routing) and
+      // calculates the page in 'None' so navigation opens the right page
+      // instead of dropping the video query.
+      await (await apiRequest("/list", {
+        method: "POST",
+        body: JSON.stringify({
+          urlList: [UNLISTED_LOCATE_VIDEO_URL],
+          chunkSize: 9,
+          monitoringType: "N/A",
+          sleep: true,
+        }),
+      })).text();
+
+      await waitFor(async () => {
+        const check = await apiRequest("/locate", {
+          method: "POST",
+          body: JSON.stringify({
+            videoUrl: UNLISTED_LOCATE_VIDEO_URL,
+            pageSize: 8,
+            sortDownloaded: false,
+          }),
+        });
+        const data = await check.json();
+        return typeof data.page === "number";
+      });
+
+      const resp = await apiRequest("/locate", {
+        method: "POST",
+        body: JSON.stringify({
+          videoUrl: UNLISTED_LOCATE_VIDEO_URL,
+          pageSize: 8,
+          sortDownloaded: false,
+        }),
+      });
+      assertEquals(resp.status, 200);
+      const json = await resp.json();
+      assertEquals(json.videoUrl, UNLISTED_LOCATE_VIDEO_URL);
+      assertEquals(json.playlistUrl, null);
+      assertEquals(typeof json.page, "number");
+      assertEquals(json.page >= 0, true);
+    },
+  ),
+);
+
 // Suite 16 - Job control. Runs before Suite 9, which deletes everything.
 //
 // The fixture here is the one nginx throttles to 100 KB/s, so the download
@@ -3047,6 +3098,39 @@ Deno.test(
       });
       assertEquals(unknown.status, 400);
       await unknown.text();
+    },
+  ),
+);
+
+Deno.test(
+  "TC-16.8 — pausing and resuming broadcast job-paused and job-resumed socket events",
+  tracked(
+    "TC-16.8 — pausing and resuming broadcast job-paused and job-resumed socket events",
+    async () => {
+      const recorder = await recordSocketEvents([
+        "job-paused",
+        "job-resumed",
+      ]);
+      try {
+        const job = await startSlowVideoDownload();
+        const pause = await actOnJob(job.id as string, "pause");
+        assertEquals(pause.outcome, "paused");
+
+        const pausedEvent = await recorder.waitForEvent("job-paused", 10000);
+        assertEquals(pausedEvent.id, job.id);
+        assertEquals(pausedEvent.url, SLOW_VIDEO_URL);
+
+        const resume = await actOnJob(job.id as string, "resume");
+        assertEquals(resume.outcome, "resumed");
+
+        const resumedEvent = await recorder.waitForEvent("job-resumed", 10000);
+        assertEquals(resumedEvent.id, job.id);
+        assertEquals(resumedEvent.url, SLOW_VIDEO_URL);
+
+        await waitForDownloaded(SLOW_PLAYLIST_URL, SLOW_VIDEO_URL, 30000);
+      } finally {
+        recorder.close();
+      }
     },
   ),
 );

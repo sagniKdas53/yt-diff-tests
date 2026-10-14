@@ -1509,6 +1509,28 @@ hid a button believing the work went away.
 
 ---
 
+### TC-15.10 — `/locate` finds the page for an unlisted video in 'None'
+
+**Endpoint:** `POST /locate`
+
+**Setup:** index an unlisted single video (`https://mock-tube/videos/video-unlisted.mp4`) into `"None"`.
+
+**Request:**
+
+```json
+{
+  "videoUrl": "https://mock-tube/videos/video-unlisted.mp4",
+  "pageSize": 8,
+  "sortDownloaded": false
+}
+```
+
+**Assert:** `status === 200`, `playlistUrl === null`, and `page === 0` (or non-negative integer).
+
+> **Regression guard:** previously `/locate` returned `page === null` whenever a video lacked a named playlist, causing bot-submitted unlisted videos to fail playback navigation and drop `v=`. An unlisted video belongs to `"None"`, so `/locate` reports `playlistUrl === null` while providing its valid page index within the unlisted collection.
+
+---
+
 ## Suite 16 — Job Control
 
 Pausing, resuming and cancelling a job that is genuinely in flight.
@@ -1658,6 +1680,25 @@ is `400`.
 > `not-found` is a normal answer, not an error: the drawer hides the buttons a
 > job cannot take, so reaching it means the last poll was stale. It stays a
 > `200` so the client can show the sentence without an error branch.
+
+---
+
+### TC-16.8 — Pausing and resuming broadcast `job-paused` and `job-resumed` socket events
+
+**Endpoint:** WebSocket & `POST /jobaction`
+
+**Setup:** start a throttled slow video download while recording `"job-paused"` and `"job-resumed"` socket events.
+
+**Actions & Assertions:**
+1. Issue `POST /jobaction` with `action: "pause"`.
+   - Assert `outcome === "paused"`.
+   - Assert `"job-paused"` event is received over WebSocket with `{ id: job.id, url: SLOW_VIDEO_URL }`.
+2. Issue `POST /jobaction` with `action: "resume"`.
+   - Assert `outcome === "resumed"`.
+   - Assert `"job-resumed"` event is received over WebSocket with `{ id: job.id, url: SLOW_VIDEO_URL }`.
+3. Wait for the download to finish.
+
+> **Regression guard:** the drawer and queue hook rely on WebSocket notifications to update item states instantly without awaiting long polling cycles.
 
 ---
 
