@@ -2640,7 +2640,7 @@ Deno.test(
           }),
         });
         const data = await check.json();
-        return typeof data.page === "number";
+        return typeof data.page === "number" && data.playlistUrl === null;
       });
 
       const resp = await apiRequest("/locate", {
@@ -2656,6 +2656,7 @@ Deno.test(
       assertEquals(json.videoUrl, UNLISTED_LOCATE_VIDEO_URL);
       assertEquals(json.playlistUrl, null);
       assertEquals(typeof json.page, "number");
+      assertEquals(Number.isInteger(json.page), true);
       assertEquals(json.page >= 0, true);
     },
   ),
