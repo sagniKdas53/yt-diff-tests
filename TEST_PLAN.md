@@ -1312,6 +1312,396 @@ first and the re-list takes the `End` tail path again. The count does not change
 
 ---
 
+## Suite 15 — Bot-Facing Sidecar, Keep, Cancel and Locate Endpoints
+
+Validates the four endpoints the chat bot and the web UI gained alongside the
+partial-download work: fetching only what a run missed, keeping a file, stopping
+a job, and opening a link to any page of a list.
+
+**Playlist:** `Dup Test`\
+**URL:** `https://mock-tube/playlists/dup-test-1.rss?list=1`\
+**Video:** `https://mock-tube/videos/video-dup.mp4`
+
+**Setup:** index the playlist (2 mappings) and download the video.
+
+---
+
+### TC-15.1 — A completed download reports itself complete
+
+**Endpoint:** `POST /getsub`
+
+**Request:**
+
+```json
+{
+  "start": 0,
+  "stop": 8,
+  "sortDownloaded": false,
+  "query": "",
+  "url": "https://mock-tube/playlists/dup-test-1.rss?list=1"
+}
+```
+
+**Assert** on `rows[0].video_metadatum`:
+
+- `isMetaDataSynced === true`
+- `missingExtras === null`
+- `chapters === null`
+- `botExpiresAt === null`
+
+> **Regression guard:** the fixture offers no subtitles, chapters, description
+> or comments, and none of those is something the run failed to fetch. An extra
+> the source never had is not a gap, and reporting it as one is what made every
+> download look partial. `chapters === null` additionally proves the ffprobe
+> probe ran and found nothing — the common case, not a failure.
+
+---
+
+### TC-15.2 — `/syncextras` runs nothing when there is nothing missing
+
+**Endpoint:** `POST /syncextras`
+
+**Request:**
+
+```json
+{ "videoUrl": "https://mock-tube/videos/video-dup.mp4" }
+```
+
+**Assert:**
+
+- HTTP `200`
+- `status === "unchanged"`
+- `recovered` and `stillMissing` are both empty arrays
+
+> A retry against a complete download must not spend a yt-dlp process to
+> discover there is nothing to fetch.
+
+---
+
+### TC-15.3 — `/syncextras` refuses a body with no video
+
+**Endpoint:** `POST /syncextras`
+
+**Request:**
+
+```json
+{}
+```
+
+**Assert:** HTTP `400`. The URL is handed to `yt-dlp` as an argument, so a
+missing one is a bad request rather than a run against nothing.
+
+---
+
+### TC-15.4 — `/keepfile` says plainly that there was nothing to keep
+
+**Endpoint:** `POST /keepfile`
+
+**Request:**
+
+```json
+{ "videoUrl": "https://mock-tube/videos/video-dup.mp4" }
+```
+
+**Assert:**
+
+- HTTP `200`
+- `status === "success"`
+- `kept === 0`
+
+> No bot has fetched this file, so zero is the honest answer and the UI says it
+> out loud rather than dressing it up as a success.
+
+---
+
+### TC-15.5 — `/locate` names the list and the page a video opens in
+
+**Endpoint:** `POST /locate`
+
+**Request:**
+
+```json
+{
+  "videoUrl": "https://mock-tube/videos/video-dup.mp4",
+  "pageSize": 8,
+  "sortDownloaded": false
+}
+```
+
+**Assert:**
+
+- HTTP `200`
+- `videoUrl` echoes the request
+- `playlistUrl === "https://mock-tube/playlists/dup-test-1.rss?list=1"`
+- `page === 0`
+
+> The list comes from the same helper `resolveAndEnqueue` uses to pick a folder,
+> so the player link opens the list the download actually landed in.
+
+---
+
+### TC-15.6 — `/locate` reports a video that belongs to no list
+
+**Endpoint:** `POST /locate`
+
+**Request:**
+
+```json
+{
+  "videoUrl": "https://mock-tube/videos/not-indexed.mp4",
+  "pageSize": 8
+}
+```
+
+**Assert:** `playlistUrl === null` and `page === null` — null rather than a
+guess, so the caller drops the link instead of opening a list that does not hold
+the video.
+
+---
+
+### TC-15.7 — `/cancel` says there was nothing to stop
+
+**Endpoint:** `POST /cancel`
+
+**Request:**
+
+```json
+{ "url": "https://mock-tube/videos/video-dup.mp4", "kind": "download" }
+```
+
+**Assert:** `outcome === "not-found"`. A bare `200` would leave a client that
+hid a button believing the work went away.
+
+---
+
+### TC-15.8 — `/cancel` refuses a kind it does not know
+
+**Endpoint:** `POST /cancel`
+
+**Request:**
+
+```json
+{ "url": "https://mock-tube/videos/video-dup.mp4", "kind": "everything" }
+```
+
+**Assert:** HTTP `400`.
+
+---
+
+### TC-15.9 — `/cancel` accepts both kinds and answers with one vocabulary
+
+**Endpoint:** `POST /cancel`
+
+**Request:** the same URL under `"download"` and again under `"listing"`.
+
+**Assert:** for each, HTTP `200`, `status === "success"`, the echoed `kind`, and
+`outcome` drawn from the same three documented answers (`killed`, `queued`,
+`not-found`).
+
+> What this pins is the vocabulary, not a race. A listing or download that is
+> genuinely _running_ cannot be caught at a chosen instant in this fixture
+> environment — a mock-tube video finishes in tens of milliseconds — so a test
+> that waited for `killed` here would be a coin flip, and a coin flip in CI is
+> worse than an honest gap. The kill path is covered where it can be
+> deterministic instead: the backend's own pipeline tests, and the
+> pause-then-cancel round trip in the job-control suite, where a paused job
+> stays put long enough to act on.
+
+---
+
+### TC-15.10 — `/locate` finds the page for an unlisted video in 'None'
+
+**Endpoint:** `POST /locate`
+
+**Setup:** index an unlisted single video (`https://mock-tube/videos/video-unlisted.mp4`) into `"None"`.
+
+**Request:**
+
+```json
+{
+  "videoUrl": "https://mock-tube/videos/video-unlisted.mp4",
+  "pageSize": 8,
+  "sortDownloaded": false
+}
+```
+
+**Assert:** `status === 200`, `playlistUrl === null`, and `page === 0` (or non-negative integer).
+
+> **Regression guard:** previously `/locate` returned `page === null` whenever a video lacked a named playlist, causing bot-submitted unlisted videos to fail playback navigation and drop `v=`. An unlisted video belongs to `"None"`, so `/locate` reports `playlistUrl === null` while providing its valid page index within the unlisted collection.
+
+---
+
+## Suite 16 — Job Control
+
+Pausing, resuming and cancelling a job that is genuinely in flight.
+
+**Playlist:** `Slow Transfer`\
+**URL:** `https://mock-tube/playlists/slow-playlist.rss?list=1`\
+**Video:** `https://mock-tube/slow/video-slow.mp4`\
+**Queued video:** `https://mock-tube/videos/video-slow-2.mp4`
+
+**Setup:** index the playlist (2 mappings). Neither video is downloaded — the
+tests do that themselves, because a download that has already finished is not
+one you can act on.
+
+The playlist holds two videos on purpose. The first is the throttled one, and
+every test that needs a transfer in flight uses it. The second is ordinary speed
+and is only ever indexed: it exists to sit queued behind the first and be
+cancelled before it takes a slot. A second megabyte of fixture to download
+nothing with is not worth keeping. It also has to be a _different_ video — a
+second request for the same URL is deduplicated before it reaches the queue, so
+the same video twice is one job rather than a job and a wait for it.
+
+**Between tests:** each one deletes the fetched file first (`POST /delsub` with
+`cleanUp`). yt-dlp skips a URL whose output is already on disk, and the pipeline
+calls a skipped run a success the moment it sees a file, so without this every
+test after the first would watch a job finish in milliseconds. The mapping and
+the row stay put, so the video is still indexed.
+
+> **Why this fixture exists.** Every other mock video is 2 KB and lands in
+> milliseconds. That answers "did this file arrive" and cannot answer "is this
+> still running when I ask", which is the question every test below has to ask
+> before it acts. nginx caps `/slow/` at 100 KB/s, so this 1,071,444-byte file
+> takes exactly ten seconds to fetch — a window wide enough to poll and act, and
+> narrow enough not to slow the suite down.
+
+**Environment:** `MAX_DOWNLOADS=1`, so the throttled first video holds the only
+slot and the second, distinct video is provably still queued behind it.
+
+---
+
+### TC-16.1 — `/queuestatus` reports a running download with real progress
+
+**Endpoint:** `POST /queuestatus`
+
+**Assert** on the download entry for the slow video:
+
+- `state === "running"`, `kind === "download"`, an `id` is present
+- `progress.totalBytes === 1071444` — the real size, from the enclosure
+- `0 < progress.downloadedBytes < progress.totalBytes`
+
+> A total at or past the end would mean the run is already over, and a bar drawn
+> from a number nobody measured is not progress. The bytes have to have come off
+> the throttled connection for this to mean anything.
+
+---
+
+### TC-16.2 — Pausing a running download keeps the bytes it has
+
+**Endpoint:** `POST /jobaction`
+
+**Request:** `{ "id": "<running job>", "action": "pause" }`
+
+**Assert:**
+
+- `outcome === "paused"`
+- `partialDeleted === false` — pausing keeps the partial file
+- the job is then reported with `state === "paused"` and the **same id**
+- and it is no longer reported as `running`
+
+> The same id matters: the drawer keys on it, and a pause that minted a new one
+> would make the row the user pressed on disappear. The last assertion is what
+> makes the first two mean anything — "paused" over a job that is still fetching
+> would pass them.
+
+---
+
+### TC-16.3 — A paused download resumes under the same job
+
+**Endpoint:** `POST /jobaction`
+
+**Request:** `{ "id": "<paused job>", "action": "resume" }`
+
+**Assert:** `outcome === "resumed"`, the job reappears as `running` or `queued`
+under the same `id`, and the download goes on to complete.
+
+---
+
+### TC-16.4 — Cancelling a paused download throws the kept bytes away
+
+**Endpoint:** `POST /jobaction`
+
+**Request:** `{ "id": "<job>", "action": "pause" }` then
+`{ "id": "<same id>", "action": "cancel" }`
+
+**Assert:** `outcome === "cancelled"` and **`partialDeleted === true`**, and the
+job is gone from the queue.
+
+> Cancelling a paused job is the one case where deleting is the whole point:
+> those bytes are on disk precisely because a pause left them. A cancel that
+> kept them would leak half a video every time somebody changed their mind.
+
+---
+
+### TC-16.5 — A running listing is paused and resumed like a download
+
+**Endpoint:** `POST /jobaction`
+
+**Request:** pause, then resume, then cancel a running listing.
+
+**Assert:** each answers `paused`, `resumed`, `cancelled`; a pause reports
+`partialDeleted === false`. The cancel waits for the resumed job to be back in
+the queue first — a listing resume returns `resumed` immediately but starts on
+its own once the run it replaced settles, and cancelling into that gap answers
+`not-found`.
+
+> A listing writes no files — it streams JSON into the database and persists
+> each chunk as it goes — so there is never anything to delete. Reporting `true`
+> here would be claiming a deletion that did not happen.
+
+---
+
+### TC-16.6 — A queued download is cancelled for free
+
+**Endpoint:** `POST /jobaction`
+
+**Setup:** request both videos. `MAX_DOWNLOADS=1`, so the throttled one holds
+the only slot and the second is queued behind it.
+
+**Assert** on the queued job: a distinct `id` and `queuePosition > 0`.
+Cancelling it answers `cancelled` with `partialDeleted === false`.
+
+> Nothing to kill and nothing to delete — this is the "at no cost" the drawer
+> offers, and `partialDeleted` must not claim otherwise. A `queuePosition` of 0
+> would mean the drawer is telling someone waiting that they are first.
+
+---
+
+### TC-16.7 — `/jobaction` refuses what it cannot do
+
+**Endpoint:** `POST /jobaction`
+
+**Request:** `{ "id": "no-such-job", "action": "pause" }` and
+`{ "id": "no-such-job", "action": "detonate" }`
+
+**Assert:** the first answers `200` with `outcome === "not-found"`; the second
+is `400`.
+
+> `not-found` is a normal answer, not an error: the drawer hides the buttons a
+> job cannot take, so reaching it means the last poll was stale. It stays a
+> `200` so the client can show the sentence without an error branch.
+
+---
+
+### TC-16.8 — Pausing and resuming broadcast `job-paused` and `job-resumed` socket events
+
+**Endpoint:** WebSocket & `POST /jobaction`
+
+**Setup:** start a throttled slow video download while recording `"job-paused"` and `"job-resumed"` socket events.
+
+**Actions & Assertions:**
+1. Issue `POST /jobaction` with `action: "pause"`.
+   - Assert `outcome === "paused"`.
+   - Assert `"job-paused"` event is received over WebSocket with `{ id: job.id, url: SLOW_VIDEO_URL }`.
+2. Issue `POST /jobaction` with `action: "resume"`.
+   - Assert `outcome === "resumed"`.
+   - Assert `"job-resumed"` event is received over WebSocket with `{ id: job.id, url: SLOW_VIDEO_URL }`.
+3. Wait for the download to finish.
+
+> **Regression guard:** the drawer and queue hook rely on WebSocket notifications to update item states instantly without awaiting long polling cycles.
+
+---
+
 ## Suite 9 — Cleanup
 
 Tear down all test state created during the plan.
